@@ -221,6 +221,37 @@
 - `src/components/ConfirmFoodSheet.tsx` — confirm/review UI
 - `src/app/page.tsx` — wired full flow
 
-## Step 6: Add Voice Input — Not started
-## Step 7: Add External Nutrition Lookup — Not started
+## Step 6: Add Voice Input ✅ Code Complete (needs browser testing)
+
+### What was done
+1. **Replaced mock recording** in `AddFoodSheet.tsx` with real Web Speech API
+   - `SpeechRecognition` with `lang='en-IN'`, `interimResults=true`, `continuous=true`
+   - Mic button conditionally rendered based on browser support (`speechSupported` derived value)
+   - Recording state: waveform animation, "Listening..." placeholder, stop button
+   - Transcribed text populates input for editing before submit
+   - Sheet close auto-stops recognition
+2. **TypeScript declarations**: `src/types/speech.d.ts` — full type declarations for Web Speech API (SpeechRecognition, SpeechRecognitionEvent, etc.)
+3. **Cleanup**: removed unused `useEffect` import from ConfirmFoodSheet.tsx
+
+### What's needed
+- Build succeeds (`next build` passes)
+- **Needs browser testing in Chrome** (only browser with full Speech API support)
+- Test: tap mic → speak → see transcript → edit → submit → confirm → log
+
+## Step 7: Add External Nutrition Lookup ✅ Largely Complete
+
+### What was done (as part of Step 5)
+- **Web search grounding** via Gemini Flash with `tools: [{ googleSearch: {} }]`
+- When food isn't in library → Gemini searches web for real nutrition data
+- **Atwater formula validation**: server-side check (`Cal ≈ P×4 + (C−Fi)×4 + Fi×2 + F×9`), 15% deviation threshold
+- **Retry with error feedback**: if Atwater fails, sends detailed error back to Gemini for fresh search
+- Auto-inserts validated items into food_library with `source='web_search'`
+- Three-tier data quality: `base` (990 seed items) > `web_search` > `llm_estimate`
+- **NaN fix**: sanitize null/undefined nutrition fields to 0 before returning from API
+
+### Note
+Original plan was USDA FoodData Central API. Gemini's web search grounding turned out to be more versatile (covers Indian brands, restaurant items, etc.) so USDA API was not needed separately.
+
 ## Step 8: Deploy — Not started
+- GitHub repo initialized (first commit done)
+- Needs: push to GitHub, connect Vercel, configure env vars
