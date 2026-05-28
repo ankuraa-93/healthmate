@@ -1,0 +1,27 @@
+# dependencies
+node_modules/
+
+# next.js
+.next/
+out/
+
+# env files
+.env
+.env.local
+.env.*.local
+
+# debug
+npm-debug.log*
+
+# misc
+.DS_Store
+*.tsbuildinfo
+
+# screenshots (local testing artifacts)
+screenshots/
+
+# supabase local temp
+supabase/.temp/
+
+# claude code local settings
+.claude/

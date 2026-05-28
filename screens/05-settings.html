@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HealthMate — Settings</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg-primary: #FFFFFF;
+    --bg-secondary: #F2F2F7;
+    --bg-tertiary: #E5E5EA;
+    --text-primary: #1C1C1E;
+    --text-secondary: #8E8E93;
+    --text-tertiary: #AEAEB2;
+    --accent: #34C759;
+    --destructive: #FF3B30;
+    --radius-md: 12px;
+  }
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg-secondary);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100dvh;
+    display: flex; justify-content: center;
+  }
+  .app-frame {
+    width: 100%; max-width: 428px; min-height: 100dvh;
+    background: var(--bg-primary);
+    position: relative; overflow: hidden;
+    box-shadow: 0 0 60px rgba(0,0,0,0.08);
+  }
+  .screen { position: absolute; inset: 0; overflow-y: auto; }
+  .screen::-webkit-scrollbar { display: none; }
+  .screen { scrollbar-width: none; }
+  .pad { padding: 0 16px; padding-bottom: 120px; }
+
+  .header { padding-top: 56px; margin-bottom: 24px; }
+  .header-title { font-size: 28px; font-weight: 700; }
+
+  .group { margin-bottom: 24px; }
+  .group-label {
+    font-size: 12px; font-weight: 500;
+    color: var(--text-secondary);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin-bottom: 8px; padding-left: 4px;
+  }
+  .card {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+  .row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 16px; height: 52px;
+    cursor: pointer; transition: background 100ms;
+  }
+  .row:active { background: var(--bg-tertiary); }
+  .row + .row { border-top: 0.5px solid var(--bg-tertiary); }
+  .row-label { font-size: 17px; color: var(--text-primary); }
+  .row-value {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 17px; color: var(--text-secondary);
+  }
+  .row-value i { color: var(--text-tertiary); }
+  .row.destructive .row-label { color: var(--destructive); }
+
+  .bottom-nav {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    height: 83px; background: var(--bg-primary);
+    border-top: 0.5px solid var(--bg-tertiary);
+    display: flex; align-items: flex-start; justify-content: space-around;
+    padding-top: 6px; z-index: 10;
+  }
+  .nav-tab {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    background: none; border: none; cursor: pointer; padding: 4px 16px;
+    color: var(--text-secondary);
+  }
+  .nav-tab.active { color: var(--accent); }
+  .nav-label { font-size: 12px; font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="app-frame">
+  <div class="screen">
+    <div class="pad">
+      <div class="header">
+        <div class="header-title">Settings</div>
+      </div>
+
+      <div class="group">
+        <div class="group-label">Profile</div>
+        <div class="card">
+          <div class="row">
+            <span class="row-label">Display Name</span>
+            <span class="row-value">
+              Ankur
+              <i data-lucide="chevron-right" style="width:16px;height:16px"></i>
+            </span>
+          </div>
+          <div class="row">
+            <span class="row-label">Email</span>
+            <span class="row-value">
+              ankur@example.com
+              <i data-lucide="chevron-right" style="width:16px;height:16px"></i>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="group-label">Daily Goals</div>
+        <div class="card">
+          <div class="row">
+            <span class="row-label">Calories</span>
+            <span class="row-value">
+              2,000
+              <i data-lucide="chevron-right" style="width:16px;height:16px"></i>
+            </span>
+          </div>
+          <div class="row">
+            <span class="row-label">Protein</span>
+            <span class="row-value">
+              120g
+              <i data-lucide="chevron-right" style="width:16px;height:16px"></i>
+            </span>
+          </div>
+          <div class="row">
+            <span class="row-label">Carbs</span>
+            <span class="row-value">
+              250g
+              <i data-lucide="chevron-right" style="width:16px;height:16px"></i>
+            </span>
+          </div>
+          <div class="row">
+            <span class="row-label">Fat</span>
+            <span class="row-value">
+              65g
+              <i data-lucide="chevron-right" style="width:16px;height:16px"></i>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="group-label">Account</div>
+        <div class="card">
+          <div class="row destructive" onclick="alert('Signed out!')">
+            <span class="row-label">Sign Out</span>
+            <span class="row-value"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <nav class="bottom-nav">
+    <button class="nav-tab">
+      <i data-lucide="house" style="width:24px;height:24px"></i>
+      <span class="nav-label">Today</span>
+    </button>
+    <button class="nav-tab">
+      <i data-lucide="calendar-days" style="width:24px;height:24px"></i>
+      <span class="nav-label">History</span>
+    </button>
+    <button class="nav-tab active">
+      <i data-lucide="settings" style="width:24px;height:24px"></i>
+      <span class="nav-label">Settings</span>
+    </button>
+  </nav>
+</div>
+<script>lucide.createIcons();</script>
+</body>
+</html>

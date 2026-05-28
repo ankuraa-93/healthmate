@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HealthMate — Add Food</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg-primary: #FFFFFF;
+    --bg-secondary: #F2F2F7;
+    --bg-tertiary: #E5E5EA;
+    --text-primary: #1C1C1E;
+    --text-secondary: #8E8E93;
+    --text-tertiary: #AEAEB2;
+    --accent: #34C759;
+    --accent-secondary: #007AFF;
+    --destructive: #FF3B30;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-full: 999px;
+  }
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg-secondary);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100dvh;
+    display: flex; justify-content: center;
+  }
+  .app-frame {
+    width: 100%; max-width: 428px; min-height: 100dvh;
+    background: rgba(0,0,0,0.3);
+    position: relative; overflow: hidden;
+    box-shadow: 0 0 60px rgba(0,0,0,0.08);
+    display: flex; align-items: flex-end;
+  }
+  .sheet {
+    width: 100%;
+    background: var(--bg-primary);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    padding: 0 24px 36px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+  }
+  .handle {
+    width: 36px; height: 4px;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-full);
+    margin: 10px auto 16px;
+  }
+  .title { font-size: 22px; font-weight: 600; margin-bottom: 16px; }
+
+  .date-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--bg-secondary); border-radius: var(--radius-full);
+    padding: 6px 14px; margin-bottom: 16px;
+    border: none; font-family: inherit; cursor: pointer;
+    position: relative;
+  }
+  .date-chip i { color: var(--text-secondary); }
+  .date-text { font-size: 16px; color: var(--text-primary); }
+  .hidden-date { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+
+  .input-row { display: flex; gap: 8px; margin-bottom: 12px; }
+  .food-input {
+    flex: 1; background: var(--bg-secondary); border: none;
+    border-radius: var(--radius-sm); padding: 14px 16px;
+    font-family: inherit; font-size: 17px; color: var(--text-primary); outline: none;
+    transition: box-shadow 200ms;
+  }
+  .food-input::placeholder { color: var(--text-tertiary); }
+  .food-input:focus { box-shadow: 0 0 0 2px rgba(52,199,89,0.3); }
+
+  .mic-btn {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: var(--bg-secondary); border: none;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-secondary); cursor: pointer; flex-shrink: 0;
+    transition: all 200ms;
+  }
+  .mic-btn.recording {
+    background: var(--destructive); color: #fff;
+    animation: pulse 1s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,59,48,0.4); }
+    50% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(255,59,48,0); }
+  }
+
+  .waveform {
+    display: none; align-items: center; justify-content: center;
+    gap: 3px; height: 40px; margin-bottom: 8px;
+  }
+  .waveform.visible { display: flex; }
+  .waveform-bar {
+    width: 3px; background: var(--destructive); border-radius: 2px;
+    animation: wave 600ms ease-in-out infinite alternate;
+  }
+  .waveform-bar:nth-child(1)  { height: 8px;  animation-delay: 0ms; }
+  .waveform-bar:nth-child(2)  { height: 16px; animation-delay: 80ms; }
+  .waveform-bar:nth-child(3)  { height: 24px; animation-delay: 160ms; }
+  .waveform-bar:nth-child(4)  { height: 12px; animation-delay: 240ms; }
+  .waveform-bar:nth-child(5)  { height: 28px; animation-delay: 320ms; }
+  .waveform-bar:nth-child(6)  { height: 18px; animation-delay: 400ms; }
+  .waveform-bar:nth-child(7)  { height: 10px; animation-delay: 480ms; }
+  .waveform-bar:nth-child(8)  { height: 22px; animation-delay: 560ms; }
+  .waveform-bar:nth-child(9)  { height: 14px; animation-delay: 640ms; }
+  .waveform-bar:nth-child(10) { height: 20px; animation-delay: 720ms; }
+  @keyframes wave { to { height: 6px; } }
+
+  .wave-hint {
+    text-align: center; font-size: 13px;
+    color: var(--text-secondary); margin-bottom: 16px; display: none;
+  }
+  .wave-hint.visible { display: block; }
+
+  .examples {
+    font-size: 13px; color: var(--text-secondary); margin-bottom: 24px;
+  }
+  .examples p { margin-bottom: 2px; }
+  .examples .label { margin-bottom: 4px; }
+
+  .submit-btn {
+    width: 100%; height: 50px; background: var(--accent); color: #fff;
+    border: none; border-radius: var(--radius-sm);
+    font-family: inherit; font-size: 17px; font-weight: 600;
+    cursor: pointer; transition: transform 100ms, opacity 200ms;
+  }
+  .submit-btn:active { transform: scale(0.97); }
+  .submit-btn:disabled { opacity: 0.4; cursor: default; }
+
+  .toast {
+    position: fixed; bottom: 40px; left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--text-primary); color: #fff;
+    padding: 12px 20px; border-radius: var(--radius-sm);
+    font-size: 15px; font-weight: 500; opacity: 0;
+    pointer-events: none; transition: opacity 200ms, transform 200ms;
+    white-space: nowrap; z-index: 30;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .state-label {
+    position: fixed; top: 16px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.6); color: #fff;
+    padding: 6px 16px; border-radius: var(--radius-full);
+    font-size: 13px; font-weight: 500; z-index: 30;
+  }
+</style>
+</head>
+<body>
+<div class="app-frame">
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="title">Log Food</div>
+
+    <button class="date-chip" onclick="document.getElementById('dp').showPicker()">
+      <i data-lucide="calendar" style="width:16px;height:16px"></i>
+      <span class="date-text" id="dateLabel">Today</span>
+      <input type="date" class="hidden-date" id="dp" onchange="pickDate(this)">
+    </button>
+
+    <div class="input-row">
+      <input class="food-input" id="foodInput" type="text" placeholder="What did you eat?" oninput="checkSubmit()">
+      <button class="mic-btn" id="micBtn" onclick="toggleRec()">
+        <i data-lucide="mic" style="width:20px;height:20px"></i>
+      </button>
+    </div>
+
+    <div class="waveform" id="waveform">
+      <div class="waveform-bar"></div><div class="waveform-bar"></div><div class="waveform-bar"></div>
+      <div class="waveform-bar"></div><div class="waveform-bar"></div><div class="waveform-bar"></div>
+      <div class="waveform-bar"></div><div class="waveform-bar"></div><div class="waveform-bar"></div>
+      <div class="waveform-bar"></div>
+    </div>
+    <div class="wave-hint" id="hint">Tap stop when done</div>
+
+    <div class="examples" id="examples">
+      <p class="label">Examples:</p>
+      <p>"2 eggs and toast with butter"</p>
+      <p>"chicken salad, about 300g"</p>
+      <p>"a large cappuccino"</p>
+    </div>
+
+    <button class="submit-btn" id="submitBtn" disabled onclick="submit()">Log Food</button>
+  </div>
+</div>
+
+<div class="state-label" id="stateLabel">Default state — type or tap mic</div>
+<div class="toast" id="toast"></div>
+
+<script>
+  lucide.createIcons();
+  let rec = false;
+
+  function checkSubmit() {
+    document.getElementById('submitBtn').disabled = !document.getElementById('foodInput').value.trim();
+    updateLabel();
+  }
+
+  function updateLabel() {
+    const input = document.getElementById('foodInput');
+    if (rec) {
+      document.getElementById('stateLabel').textContent = 'Recording — waveform active';
+    } else if (input.value.trim()) {
+      document.getElementById('stateLabel').textContent = 'Ready to submit';
+    } else {
+      document.getElementById('stateLabel').textContent = 'Default state — type or tap mic';
+    }
+  }
+
+  function toggleRec() {
+    rec = !rec;
+    const btn = document.getElementById('micBtn');
+    const wf = document.getElementById('waveform');
+    const hint = document.getElementById('hint');
+    const ex = document.getElementById('examples');
+    const input = document.getElementById('foodInput');
+
+    if (rec) {
+      btn.classList.add('recording');
+      btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>';
+      wf.classList.add('visible');
+      hint.classList.add('visible');
+      ex.style.display = 'none';
+      input.value = '';
+      input.placeholder = 'Listening...';
+      input.disabled = true;
+      document.getElementById('submitBtn').disabled = true;
+    } else {
+      btn.classList.remove('recording');
+      btn.innerHTML = '';
+      const icon = document.createElement('i');
+      icon.setAttribute('data-lucide', 'mic');
+      icon.style.width = '20px'; icon.style.height = '20px';
+      btn.appendChild(icon);
+      lucide.createIcons();
+      wf.classList.remove('visible');
+      hint.classList.remove('visible');
+      ex.style.display = 'block';
+      input.disabled = false;
+      input.placeholder = 'What did you eat?';
+      input.value = '2 eggs and toast with butter';
+      document.getElementById('submitBtn').disabled = false;
+    }
+    updateLabel();
+  }
+
+  function pickDate(el) {
+    if (!el.value) return;
+    const d = new Date(el.value + 'T12:00:00');
+    const today = new Date(); today.setHours(12,0,0,0);
+    const picked = new Date(d); picked.setHours(12,0,0,0);
+    document.getElementById('dateLabel').textContent =
+      picked.getTime() === today.getTime() ? 'Today' :
+      d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  function submit() {
+    if (!document.getElementById('foodInput').value.trim()) return;
+    const t = document.getElementById('toast');
+    t.textContent = 'Food logged ✓';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2000);
+    document.getElementById('foodInput').value = '';
+    document.getElementById('submitBtn').disabled = true;
+    document.getElementById('stateLabel').textContent = 'Submitted — toast shown';
+    setTimeout(() => { document.getElementById('stateLabel').textContent = 'Default state — type or tap mic'; }, 2200);
+  }
+</script>
+</body>
+</html>
