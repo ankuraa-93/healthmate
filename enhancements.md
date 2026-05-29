@@ -8,9 +8,10 @@
 - Pull-to-refresh on dashboard — done
 - Remove comma from calorie counter — done
 - Change font, font size and boldness (check if Avenir will look good) — done
-- Color coding improvements (replace light blue with lightened green, orange based on calorie %)
+- Color coding improvements (replace light blue with lightened green, orange based on calorie %) — done
 - Forgot password flow — done
 - Drag-and-drop food cards between meal groups on dashboard — moved to later
+- Frequently logged logic — can we move it to dashboard page instead? Review logic: daily, weekly and biweekly frequency.
 
 ### Add Food
 - Larger, more photo-focused frequent food cards (explore different layouts)
@@ -26,7 +27,6 @@
 > "Did you mean?" for confusing inputs. Flawless frequently logged food logic.
 
 - "Did you mean?" disambiguation flow — when Gemini encounters ambiguous terms (e.g., "eggs" could be scrambled, boiled, fried, omelette), show a disambiguation screen with options instead of defaulting. Needs new UI screen + Gemini prompt changes to flag ambiguous items.
-- Frequently logged logic — can we move it to dashboard page instead? Review logic: daily, weekly and biweekly frequency.
 - Meal level summaries of cal + macros
 - Add Noice (Swiggy Instamart private label) products — 200+ artisanal items across bakery, dairy, snacks, beverages, sweets. No public nutrition data yet; need actual packaging labels from Swiggy app or physical products. Start with top sellers: malai paneer, butter cookies, coconut water, spicy potato chips, banana chips, kaju katli, Punjabi lassi, sourdough bread.
 

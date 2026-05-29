@@ -12,13 +12,13 @@ interface FoodCardProps {
   onDelete?: (entryId: string) => void;
 }
 
-const SWIPE_THRESHOLD = -80;
+const REVEAL_THRESHOLD = -80;
+const DELETE_THRESHOLD = -180;
 
 export default function FoodCard({ entry, index, onClick, onDelete }: FoodCardProps) {
   const unitLabel = entry.unit === 'ml' ? 'ml' : 'g';
   const x = useMotionValue(0);
   const deleteOpacity = useTransform(x, [-100, -60, 0], [1, 0.8, 0]);
-  const deleteScale = useTransform(x, [-100, -60, 0], [1, 0.8, 0.5]);
   const [swiped, setSwiped] = useState(false);
   const didDrag = useRef(false);
 
@@ -33,7 +33,9 @@ export default function FoodCard({ entry, index, onClick, onDelete }: FoodCardPr
   };
 
   const handleDragEnd = (_: unknown, info: PanInfo) => {
-    if (info.offset.x < SWIPE_THRESHOLD) {
+    if (swiped && (info.offset.x < REVEAL_THRESHOLD || info.velocity.x < -300)) {
+      if (onDelete) onDelete(entry.id);
+    } else if (info.offset.x < REVEAL_THRESHOLD) {
       setSwiped(true);
     } else {
       setSwiped(false);
@@ -65,8 +67,8 @@ export default function FoodCard({ entry, index, onClick, onDelete }: FoodCardPr
       <motion.div
         className={`bg-bg-secondary rounded-xl p-3 px-3.5 relative ${onClick ? 'cursor-pointer' : ''}`}
         drag={onDelete ? 'x' : false}
-        dragConstraints={{ left: -100, right: 0 }}
-        dragElastic={0.1}
+        dragConstraints={{ left: swiped ? -300 : -100, right: 0 }}
+        dragElastic={0.05}
         onDragStart={handleDragStart}
         onDrag={handleDrag}
         onDragEnd={handleDragEnd}

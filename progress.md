@@ -271,9 +271,12 @@
 ### Note
 Original plan was USDA FoodData Central API. Gemini's web search grounding turned out to be more versatile (covers Indian brands, restaurant items, etc.) so USDA API was not needed separately.
 
-## Step 8: Deploy — Not started
-- GitHub repo initialized (first commit done)
-- Needs: push to GitHub, connect Vercel, configure env vars
+## Step 8: Deploy ✅ Complete
+- Pushed to GitHub (`ankuraa-93/healthmate`)
+- Deployed to Vercel via CLI: **https://hm-clone-gamma.vercel.app**
+- Env vars configured: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`
+- Supabase Site URL updated to production URL for auth redirects
+- User account created via Admin API (rate limit workaround)
 
 ---
 
@@ -379,3 +382,47 @@ Other audio improvements:
 ### Next steps (priority order)
 1. **Step 8**: Deploy (GitHub → Vercel + Supabase env vars — needs `GROQ_API_KEY` added)
 2. **Enhancements**: See `enhancements.md` for parked ideas
+
+## Session: 2026-05-30 — Deploy + v1 UX enhancements
+
+### Deploy (Step 8)
+- Pushed to GitHub, deployed to Vercel via CLI
+- Production URL: **https://hm-clone-gamma.vercel.app**
+- All 4 env vars configured on Vercel (Supabase URL, anon key, Gemini, Groq)
+- Supabase Site URL changed to production for auth email redirects
+- User account created via Supabase Admin API (email rate limit workaround)
+
+### v1 UX enhancements
+1. **Font**: Inter → system Avenir Next stack (zero font download)
+2. **Font weight**: stepped down globally — bold→semibold, semibold→medium
+3. **Food card sizing**: food name + calories both 14px font-medium
+4. **Remove comma** from calorie counter (`toLocaleString` → direct value)
+5. **Swipe-to-delete**: two-step — first swipe reveals delete button, second swipe auto-deletes. Drag/click conflict fixed with `didDrag` ref.
+6. **Pull-to-refresh**: touch-based on dashboard, RefreshCw spinner, fetches logs+profile+frequent foods
+7. **Forgot password**: "Forgot password?" link on auth page, sends Supabase reset email
+8. **Color coding overhaul**: pace-relative logic
+   - cal% >= 75%: yellow (75-89%), green (90-110%), red (<75% or >110%)
+   - cal% < 75%: calorie ring = light green; macros compared against calorie pace (light green/yellow/red)
+   - New CSS vars: `--color-light-green`, `--color-light-yellow`, `--color-light-red`
+9. **Fixed date picker**: pinned to top, no longer scrolls with content
+10. **Compact spacing**: reduced top padding, bottom nav uses safe-area-inset instead of fixed 83px
+11. **Nav label**: "Today" → "Home"
+12. **Swipe gap fix**: delete area fills full card (no whitespace between card and red area)
+
+### Bug fixes
+- **Timezone bug**: `toISOString().split('T')[0]` used UTC, causing wrong date after 6:30 PM IST. Fixed to use local date methods (`getFullYear`, `getMonth`, `getDate`) in both dashboard and history page.
+
+### Files changed
+- `src/app/layout.tsx` — font swap (Inter → Avenir Next system stack)
+- `src/app/globals.css` — added light-green, light-yellow, light-red color vars
+- `src/components/CalorieRing.tsx` — new color logic, comma removed
+- `src/components/MacroGrid.tsx` — pace-relative color logic
+- `src/components/FoodCard.tsx` — swipe-to-delete with two-step + drag/click fix
+- `src/components/BottomNav.tsx` — "Home" label, compact height
+- `src/components/EditFoodSheet.tsx` — font weight reduction
+- `src/components/AddFoodSheet.tsx` — font weight reduction
+- `src/components/Toast.tsx` — font weight reduction
+- `src/app/page.tsx` — pull-to-refresh, fixed date header, swipe-delete wiring, timezone fix
+- `src/app/auth/page.tsx` — forgot password flow, font weight
+- `src/app/history/page.tsx` — timezone fix, font weight
+- `src/app/settings/page.tsx` — font weight
