@@ -12,7 +12,8 @@ import AddFoodSheet from '@/components/AddFoodSheet';
 import EditFoodSheet from '@/components/EditFoodSheet';
 import Toast from '@/components/Toast';
 import { useAuth } from '@/components/AuthProvider';
-import { fetchFoodLogs, fetchProfile, updateFoodLog, deleteFoodLog, fetchFrequentFoods } from '@/lib/supabase-data';
+import { fetchFoodLogs, fetchProfile, updateFoodLog, deleteFoodLog, insertFoodLog, fetchSuggestions, SuggestedFood } from '@/lib/supabase-data';
+import SuggestedFoods from '@/components/SuggestedFoods';
 import { FoodLogEntry, Profile } from '@/lib/types';
 
 function formatDate(date: Date): string {
@@ -38,7 +39,8 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const [logs, setLogs] = useState<FoodLogEntry[]>([]);
   const [profile, setProfile] = useState<Profile>(defaultProfile);
-  const [frequentFoods, setFrequentFoods] = useState<{ food_name: string; quantity_g: number; calories: number; protein: number; carbs: number; fat: number; fibre: number; unit: string; food_library_id: string | null; count: number }[]>([]);
+  const [suggestions, setSuggestions] = useState<SuggestedFood[]>([]);
+  const [dismissedMeals, setDismissedMeals] = useState<Set<string>>(new Set());
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<FoodLogEntry | null>(null);
   const [toast, setToast] = useState<{
@@ -76,7 +78,7 @@ export default function DashboardPage() {
         await Promise.all([
           fetchFoodLogs(user.id, formatDate(selectedDate)).then(setLogs),
           fetchProfile(user.id).then(p => { if (p) setProfile(p); }),
-          fetchFrequentFoods(user.id, 9).then(setFrequentFoods),
+          fetchSuggestions(user.id, selectedDate).then(setSuggestions),
         ]);
       }
       setRefreshing(false);
@@ -87,17 +89,18 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!user) return;
     fetchProfile(user.id).then(p => { if (p) setProfile(p); });
-    fetchFrequentFoods(user.id, 9).then(setFrequentFoods);
   }, [user]);
 
   useEffect(() => {
     if (!user) return;
     fetchFoodLogs(user.id, formatDate(selectedDate)).then(setLogs);
+    fetchSuggestions(user.id, selectedDate).then(setSuggestions);
   }, [user, selectedDate]);
 
   const refreshLogs = useCallback(() => {
     if (!user) return;
     fetchFoodLogs(user.id, formatDate(selectedDate)).then(setLogs);
+    fetchSuggestions(user.id, selectedDate).then(setSuggestions);
   }, [user, selectedDate]);
 
   const totals = logs.reduce(
@@ -123,8 +126,7 @@ export default function DashboardPage() {
   const handleSheetClose = useCallback(() => {
     setSheetOpen(false);
     refreshLogs();
-    if (user) fetchFrequentFoods(user.id, 9).then(setFrequentFoods);
-  }, [refreshLogs, user]);
+  }, [refreshLogs]);
 
   const handleEditSave = useCallback(async (result: {
     id: string;
@@ -183,9 +185,36 @@ export default function DashboardPage() {
     }
   }, [logs, showToast]);
 
+  const handleSuggestionAdd = useCallback(async (item: SuggestedFood) => {
+    if (!user) return;
+    const entry = await insertFoodLog({
+      user_id: user.id,
+      food_library_id: item.food_library_id,
+      food_name: item.food_name,
+      quantity_g: item.quantity_g,
+      calories: item.calories,
+      protein: item.protein,
+      carbs: item.carbs,
+      fat: item.fat,
+      fibre: item.fibre,
+      meal_type: item.meal_type as 'breakfast' | 'lunch' | 'dinner' | 'snack',
+      logged_date: formatDate(selectedDate),
+      status: 'confirmed',
+      unit: item.unit as 'g' | 'ml',
+    });
+    if (entry) {
+      setLogs(prev => [...prev, entry]);
+      setSuggestions(prev => prev.filter(s => !(s.food_name === item.food_name && s.meal_type === item.meal_type)));
+      showToast(`${item.food_name} logged ✓`);
+    }
+  }, [user, selectedDate, showToast]);
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const isToday = selectedDate.toDateString() === today.toDateString();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const showSuggestions = isToday || selectedDate.toDateString() === yesterday.toDateString();
   const dateStr = isToday
     ? `Today, ${selectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}`
     : selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric' });
@@ -283,51 +312,63 @@ export default function DashboardPage() {
             snack: 'Snack',
             dinner: 'Dinner',
           };
-          const grouped = mealOrder
-            .map(type => ({
-              type,
-              label: mealLabels[type],
-              entries: logs.filter(l => l.meal_type === type),
-            }))
-            .filter(g => g.entries.length > 0);
 
-          if (grouped.length === 0) {
-            return (
-              <motion.div
-                className="text-center py-12 text-text-tertiary"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.4 }}
-              >
-                <p className="text-[15px]">No meals logged yet</p>
-                <p className="text-[13px] mt-1">Tap + to add your first meal</p>
-              </motion.div>
-            );
-          }
+          const dummySuggestions: SuggestedFood[] = [
+            { food_name: 'Omelette', quantity_g: 120, calories: 220, protein: 16, carbs: 2, fat: 17, fibre: 0, unit: 'g', food_library_id: null, meal_type: 'breakfast', pattern: 'daily' },
+            { food_name: 'Toast (White Bread)', quantity_g: 60, calories: 156, protein: 5, carbs: 29, fat: 2, fibre: 1, unit: 'g', food_library_id: null, meal_type: 'breakfast', pattern: 'daily' },
+            { food_name: 'Black Coffee', quantity_g: 200, calories: 4, protein: 0, carbs: 1, fat: 0, fibre: 0, unit: 'ml', food_library_id: null, meal_type: 'breakfast', pattern: 'weekly' },
+            { food_name: 'Dal Tadka', quantity_g: 200, calories: 170, protein: 9, carbs: 22, fat: 5, fibre: 4, unit: 'g', food_library_id: null, meal_type: 'lunch', pattern: 'daily' },
+            { food_name: 'Jeera Rice', quantity_g: 180, calories: 234, protein: 4, carbs: 46, fat: 4, fibre: 1, unit: 'g', food_library_id: null, meal_type: 'lunch', pattern: 'weekly' },
+            { food_name: 'Paneer Butter Masala', quantity_g: 200, calories: 330, protein: 14, carbs: 12, fat: 26, fibre: 2, unit: 'g', food_library_id: null, meal_type: 'lunch', pattern: 'daily' },
+            { food_name: 'Roti', quantity_g: 40, calories: 104, protein: 3, carbs: 18, fat: 3, fibre: 2, unit: 'g', food_library_id: null, meal_type: 'lunch', pattern: 'biweekly' },
+            { food_name: 'Raita', quantity_g: 100, calories: 60, protein: 3, carbs: 5, fat: 3, fibre: 0, unit: 'g', food_library_id: null, meal_type: 'lunch', pattern: 'biweekly' },
+          ];
+          const allSuggestions = [...suggestions, ...dummySuggestions];
 
           let cardIndex = 0;
-          return grouped.map((group) => (
-            <div key={group.type} className="mb-3">
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-[12px] font-medium text-text-tertiary uppercase tracking-wide">{group.label}</span>
-                <div className="flex-1 h-px bg-bg-tertiary" />
-              </div>
-              <AnimatePresence>
-              {group.entries.map((entry) => {
-                const idx = cardIndex++;
-                return (
-                  <FoodCard
-                    key={entry.id}
-                    entry={entry}
-                    index={idx}
-                    onClick={entry.status === 'confirmed' ? () => setEditingEntry(entry) : undefined}
-                    onDelete={entry.status === 'confirmed' ? handleSwipeDelete : undefined}
+          return mealOrder.map((type) => {
+            const entries = logs.filter(l => l.meal_type === type);
+            const loggedNames = new Set(entries.map(e => e.food_name));
+            const mealSuggestions = showSuggestions && !dismissedMeals.has(type)
+              ? allSuggestions.filter(s => s.meal_type === type && !loggedNames.has(s.food_name))
+              : [];
+            const hasContent = entries.length > 0 || mealSuggestions.length > 0;
+
+            if (!hasContent) return null;
+
+            return (
+              <div key={type} className="mb-3">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="text-[12px] font-medium text-text-tertiary uppercase tracking-wide">{mealLabels[type]}</span>
+                  <div className="flex-1 h-px bg-bg-tertiary" />
+                </div>
+                <AnimatePresence>
+                {entries.map((entry) => {
+                  const idx = cardIndex++;
+                  return (
+                    <FoodCard
+                      key={entry.id}
+                      entry={entry}
+                      index={idx}
+                      onClick={entry.status === 'confirmed' ? () => setEditingEntry(entry) : undefined}
+                      onDelete={entry.status === 'confirmed' ? handleSwipeDelete : undefined}
+                    />
+                  );
+                })}
+                </AnimatePresence>
+                <AnimatePresence>
+                {mealSuggestions.length > 0 && (
+                  <SuggestedFoods
+                    key={`suggest-${type}`}
+                    items={mealSuggestions}
+                    onAdd={handleSuggestionAdd}
+                    onDismiss={() => setDismissedMeals(prev => new Set(prev).add(type))}
                   />
-                );
-              })}
-              </AnimatePresence>
-            </div>
-          ));
+                )}
+                </AnimatePresence>
+              </div>
+            );
+          });
         })()}
       </div>
       </div>
@@ -341,7 +382,6 @@ export default function DashboardPage() {
         onClose={handleSheetClose}
         userId={user?.id ?? ''}
         logDate={formatDate(selectedDate)}
-        frequentFoods={frequentFoods}
         onToast={showToast}
       />
 

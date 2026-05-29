@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mic, ArrowUp, Plus, X, Check, ChevronRight, Trash2, Loader2 } from 'lucide-react';
+import { Mic, ArrowUp, X, Check, ChevronRight, Trash2, Loader2 } from 'lucide-react';
 import { insertFoodLog, deleteFoodLog, updateFoodLog } from '@/lib/supabase-data';
 
 // --- Types ---
@@ -22,25 +22,11 @@ interface TrayItem {
   fibre_per_100g: number;
 }
 
-interface FrequentFood {
-  food_name: string;
-  quantity_g: number;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  fibre: number;
-  unit: string;
-  food_library_id: string | null;
-  count: number;
-}
-
 interface AddFoodSheetProps {
   open: boolean;
   onClose: () => void;
   userId: string;
   logDate: string;
-  frequentFoods?: FrequentFood[];
   onToast?: (message: string) => void;
 }
 
@@ -57,18 +43,6 @@ function scaleNutrition(item: TrayItem) {
   };
 }
 
-function getMealType(): 'breakfast' | 'lunch' | 'dinner' | 'snack' {
-  const hour = new Date().getHours();
-  if (hour >= 5 && hour < 11) return 'breakfast';
-  if (hour >= 11 && hour < 15) return 'lunch';
-  if (hour >= 15 && hour < 18) return 'snack';
-  return 'dinner';
-}
-
-function toper100g(val: number, qty: number) {
-  return qty > 0 ? (val / qty) * 100 : 0;
-}
-
 function getAudioMimeType(): string {
   if (typeof MediaRecorder === 'undefined') return '';
   const types = ['audio/webm', 'audio/mp4', 'audio/ogg'];
@@ -80,7 +54,7 @@ function getAudioMimeType(): string {
 
 // --- Component ---
 
-function AddFoodSheetInner({ onClose, userId, logDate, frequentFoods = [], onToast }: Omit<AddFoodSheetProps, 'open'>) {
+function AddFoodSheetInner({ onClose, userId, logDate, onToast }: Omit<AddFoodSheetProps, 'open'>) {
   const [input, setInput] = useState('');
   const [trayItems, setTrayItems] = useState<TrayItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -93,10 +67,6 @@ function AddFoodSheetInner({ onClose, userId, logDate, frequentFoods = [], onToa
 
   const hasContent = input.trim().length > 0;
   const micSupported = typeof window !== 'undefined' && typeof MediaRecorder !== 'undefined' && getAudioMimeType() !== '';
-
-  const selectedFrequentNames = new Set(
-    trayItems.map(item => item.matched_library_name || item.name)
-  );
 
   // --- DB operations ---
 
@@ -234,38 +204,6 @@ function AddFoodSheetInner({ onClose, userId, logDate, frequentFoods = [], onToa
     recording ? stopRecording() : startRecording();
   };
 
-  // --- Frequent food toggle ---
-
-  const handleFrequentToggle = async (food: FrequentFood) => {
-    const isSelected = selectedFrequentNames.has(food.food_name);
-
-    if (isSelected) {
-      const trayItem = trayItems.find(item => (item.matched_library_name || item.name) === food.food_name);
-      if (trayItem) {
-        setTrayItems(prev => prev.filter(item => item.id !== trayItem.id));
-        await deleteFoodLog(trayItem.id);
-      }
-    } else {
-      const itemData: Omit<TrayItem, 'id'> = {
-        name: food.food_name,
-        matched_library_id: food.food_library_id,
-        matched_library_name: food.food_name,
-        quantity_g: food.quantity_g,
-        unit: (food.unit === 'ml' ? 'ml' : 'g') as 'g' | 'ml',
-        meal_type: getMealType(),
-        calories_per_100g: toper100g(food.calories, food.quantity_g),
-        protein_per_100g: toper100g(food.protein, food.quantity_g),
-        carbs_per_100g: toper100g(food.carbs, food.quantity_g),
-        fat_per_100g: toper100g(food.fat, food.quantity_g),
-        fibre_per_100g: toper100g(food.fibre, food.quantity_g),
-      };
-      const result = await logItemToDb(itemData);
-      if (result) {
-        setTrayItems(prev => [...prev, result]);
-      }
-    }
-  };
-
   // --- Tray editing ---
 
   const handleUpdateQuantity = async (index: number, newQty: number) => {
@@ -311,12 +249,6 @@ function AddFoodSheetInner({ onClose, userId, logDate, frequentFoods = [], onToa
       micStreamRef.current = null;
     };
   }, [micSupported]);
-
-  // Chunk frequent foods into columns of 3
-  const freqColumns: FrequentFood[][] = [];
-  for (let i = 0; i < frequentFoods.length; i += 3) {
-    freqColumns.push(frequentFoods.slice(i, i + 3));
-  }
 
   return (
     <>
@@ -505,52 +437,6 @@ function AddFoodSheetInner({ onClose, userId, logDate, frequentFoods = [], onToa
               </motion.div>
             )}
           </AnimatePresence>
-
-          {/* ── Frequently logged — horizontal scroll grid ── */}
-          {!recording && frequentFoods.length > 0 && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <div className="text-[13px] font-medium text-text-secondary uppercase tracking-wide mb-3">
-                Frequently logged
-              </div>
-              <div className="overflow-x-auto scrollbar-none -mx-6 px-6 mb-5">
-                <div className="flex gap-2.5">
-                  {freqColumns.map((col, colIdx) => (
-                    <div key={colIdx} className="flex flex-col gap-2 shrink-0 w-[280px]">
-                      {col.map(food => {
-                        const unitLabel = food.unit === 'ml' ? 'ml' : 'g';
-                        const isSelected = selectedFrequentNames.has(food.food_name);
-                        return (
-                          <motion.div
-                            key={food.food_name}
-                            className={`flex items-center gap-3 rounded-xl p-2.5 cursor-pointer active:opacity-70 transition-all ${
-                              isSelected ? 'bg-accent/10 ring-1 ring-accent/30' : 'bg-bg-secondary'
-                            }`}
-                            onClick={() => handleFrequentToggle(food)}
-                            whileTap={{ scale: 0.97 }}
-                          >
-                            <div className="w-9 h-9 rounded-lg bg-bg-tertiary flex items-center justify-center text-sm flex-shrink-0">
-                              {food.food_name.slice(0, 1).toUpperCase()}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-[13px] font-medium leading-snug truncate">{food.food_name}</div>
-                              <div className="text-[11px] text-text-secondary mt-0.5">
-                                {food.quantity_g}{unitLabel} · {food.calories} cal
-                              </div>
-                            </div>
-                            <span className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${
-                              isSelected ? 'bg-accent text-white' : 'bg-bg-tertiary text-accent'
-                            }`}>
-                              {isSelected ? <Check size={12} /> : <Plus size={14} />}
-                            </span>
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-          )}
 
           {/* Waveform (recording) */}
           {recording && (

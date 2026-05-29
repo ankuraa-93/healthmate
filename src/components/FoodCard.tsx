@@ -21,18 +21,36 @@ export default function FoodCard({ entry, index, onClick, onDelete }: FoodCardPr
   const deleteOpacity = useTransform(x, [-100, -60, 0], [1, 0.8, 0]);
   const [swiped, setSwiped] = useState(false);
   const didDrag = useRef(false);
+  const directionLocked = useRef<'x' | 'y' | null>(null);
 
   const handleDragStart = () => {
     didDrag.current = false;
+    directionLocked.current = null;
   };
 
   const handleDrag = (_: unknown, info: PanInfo) => {
+    if (!directionLocked.current) {
+      const absX = Math.abs(info.offset.x);
+      const absY = Math.abs(info.offset.y);
+      if (absX > 12 || absY > 12) {
+        directionLocked.current = absX > absY * 1.5 ? 'x' : 'y';
+      }
+    }
+
+    if (directionLocked.current === 'y') {
+      x.set(0);
+    }
+
     if (Math.abs(info.offset.x) > 5) {
       didDrag.current = true;
     }
   };
 
   const handleDragEnd = (_: unknown, info: PanInfo) => {
+    if (directionLocked.current === 'y') {
+      setSwiped(s => s);
+      return;
+    }
     if (swiped && (info.offset.x < REVEAL_THRESHOLD || info.velocity.x < -300)) {
       if (onDelete) onDelete(entry.id);
     } else if (info.offset.x < REVEAL_THRESHOLD) {

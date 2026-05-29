@@ -25,8 +25,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     const supabase = createClient();
 
+    const timeout = setTimeout(() => setLoading(false), 5000);
     supabase.auth.getUser().then(({ data: { user } }) => {
+      clearTimeout(timeout);
       setUser(user);
+      setLoading(false);
+    }).catch(() => {
+      clearTimeout(timeout);
       setLoading(false);
     });
 
