@@ -4,15 +4,16 @@ import { motion } from 'framer-motion';
 import { Drumstick, Wheat, Droplet, Leaf } from 'lucide-react';
 
 interface MacroProps {
+  protein: number;
+  proteinTarget: number;
+  carbs: number;
+  carbsTarget: number;
+  fat: number;
+  fatTarget: number;
+  fibre: number;
+  fibreTarget: number;
   calorieRatio: number;
 }
-
-const macros = [
-  { key: 'protein', label: 'Protein', icon: Drumstick, color: 'var(--color-protein)', value: 45, target: 120 },
-  { key: 'carbs', label: 'Carbs', icon: Wheat, color: 'var(--color-carbs)', value: 82, target: 250 },
-  { key: 'fat', label: 'Fat', icon: Droplet, color: 'var(--color-fat)', value: 18, target: 65 },
-  { key: 'fibre', label: 'Fibre', icon: Leaf, color: 'var(--color-fibre)', value: 8, target: 30 },
-];
 
 function getBarColor(value: number, target: number, colorsActive: boolean): string {
   if (!colorsActive) return 'var(--color-light-blue)';
@@ -22,8 +23,15 @@ function getBarColor(value: number, target: number, colorsActive: boolean): stri
   return 'var(--color-accent)';
 }
 
-export default function MacroGrid({ calorieRatio }: MacroProps) {
+export default function MacroGrid({ protein, proteinTarget, carbs, carbsTarget, fat, fatTarget, fibre, fibreTarget, calorieRatio }: MacroProps) {
   const colorsActive = calorieRatio >= 0.8;
+
+  const macros = [
+    { key: 'protein', label: 'Protein', icon: Drumstick, value: protein, target: proteinTarget },
+    { key: 'carbs', label: 'Carbs', icon: Wheat, value: carbs, target: carbsTarget },
+    { key: 'fat', label: 'Fat', icon: Droplet, value: fat, target: fatTarget },
+    { key: 'fibre', label: 'Fibre', icon: Leaf, value: fibre, target: fibreTarget },
+  ];
 
   return (
     <div className="grid grid-cols-2 gap-3 gap-x-4 flex-1">
@@ -45,7 +53,7 @@ export default function MacroGrid({ calorieRatio }: MacroProps) {
                 transition={{ duration: 0.6, delay: 0.1 + i * 0.1, ease: [0.4, 0, 0.2, 1] }}
               />
             </div>
-            <span className="text-xs text-text-tertiary">{macro.value}g / {macro.target}g</span>
+            <span className="text-xs text-text-tertiary">{Math.round(macro.value)}g / {macro.target}g</span>
           </div>
         );
       })}

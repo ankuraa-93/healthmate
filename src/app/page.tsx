@@ -10,10 +10,9 @@ import FoodCard from '@/components/FoodCard';
 import FAB from '@/components/FAB';
 import AddFoodSheet from '@/components/AddFoodSheet';
 import EditFoodSheet from '@/components/EditFoodSheet';
-import ConfirmFoodSheet, { ConfirmFoodItem } from '@/components/ConfirmFoodSheet';
 import Toast from '@/components/Toast';
 import { useAuth } from '@/components/AuthProvider';
-import { fetchFoodLogs, fetchProfile, updateFoodLog, deleteFoodLog, fetchFrequentFoods, insertFoodLog } from '@/lib/supabase-data';
+import { fetchFoodLogs, fetchProfile, updateFoodLog, deleteFoodLog, fetchFrequentFoods } from '@/lib/supabase-data';
 import { FoodLogEntry, Profile } from '@/lib/types';
 
 function formatDate(date: Date): string {
@@ -36,12 +35,8 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const [logs, setLogs] = useState<FoodLogEntry[]>([]);
   const [profile, setProfile] = useState<Profile>(defaultProfile);
-  const [frequentFoods, setFrequentFoods] = useState<{ food_name: string; quantity_g: number; calories: number; unit: string; count: number }[]>([]);
+  const [frequentFoods, setFrequentFoods] = useState<{ food_name: string; quantity_g: number; calories: number; protein: number; carbs: number; fat: number; fibre: number; unit: string; food_library_id: string | null; count: number }[]>([]);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [confirmLoading, setConfirmLoading] = useState(false);
-  const [confirmQuery, setConfirmQuery] = useState('');
-  const [confirmItems, setConfirmItems] = useState<ConfirmFoodItem[]>([]);
   const [editingEntry, setEditingEntry] = useState<FoodLogEntry | null>(null);
   const [toast, setToast] = useState<{
     visible: boolean;
@@ -55,7 +50,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!user) return;
     fetchProfile(user.id).then(p => { if (p) setProfile(p); });
-    fetchFrequentFoods(user.id).then(setFrequentFoods);
+    fetchFrequentFoods(user.id, 9).then(setFrequentFoods);
   }, [user]);
 
   useEffect(() => {
@@ -88,93 +83,11 @@ export default function DashboardPage() {
     toastTimer.current = setTimeout(() => setToast({ visible: false, message: '' }), duration);
   }, []);
 
-  const handleFoodSubmit = async (text: string, attachedFoods: { name: string; detail: string; calories: number }[]) => {
+  const handleSheetClose = useCallback(() => {
     setSheetOpen(false);
-
-    if (!text && attachedFoods.length === 0) return;
-
-    // If only attached foods (no free text), skip LLM entirely
-    // TODO: wire attached foods to direct insert (they already have structured data)
-    if (!text && attachedFoods.length > 0) {
-      showToast(`${attachedFoods.length} item${attachedFoods.length > 1 ? 's' : ''} logged ✓`);
-      refreshLogs();
-      return;
-    }
-
-    // Open confirm sheet in loading state
-    setConfirmQuery(text);
-    setConfirmItems([]);
-    setConfirmLoading(true);
-    setConfirmOpen(true);
-
-    try {
-      // Step 1: Parse natural language → structured items
-      const parseRes = await fetch('/api/parse-food', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, currentHour: new Date().getHours() }),
-      });
-      if (!parseRes.ok) {
-        const err = await parseRes.json().catch(() => ({}));
-        throw new Error(err.error || 'Parse failed');
-      }
-      const parsed = await parseRes.json();
-
-      // Step 2: Fuzzy match → food library + Gemini pick
-      const matchRes = await fetch('/api/match-food', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: parsed.items }),
-      });
-      if (!matchRes.ok) {
-        const err = await matchRes.json().catch(() => ({}));
-        throw new Error(err.error || 'Match failed');
-      }
-      const matched = await matchRes.json();
-
-      setConfirmItems(matched.items);
-    } catch (error) {
-      console.error('Food parsing error:', error);
-      const msg = error instanceof Error ? error.message : 'Failed to parse food';
-      showToast(msg, 3000);
-      setConfirmOpen(false);
-    } finally {
-      setConfirmLoading(false);
-    }
-  };
-
-  const handleConfirmLog = async (items: ConfirmFoodItem[]) => {
-    if (!user) return;
-
-    const dateStr = formatDate(selectedDate);
-    const results = await Promise.all(
-      items.map(item => {
-        const ratio = item.quantity_g / 100;
-        return insertFoodLog({
-          user_id: user.id,
-          food_library_id: item.matched_library_id,
-          food_name: item.matched_library_name || item.name,
-          quantity_g: item.quantity_g,
-          calories: Math.round(item.calories_per_100g * ratio),
-          protein: Math.round(item.protein_per_100g * ratio),
-          carbs: Math.round(item.carbs_per_100g * ratio),
-          fat: Math.round(item.fat_per_100g * ratio),
-          fibre: Math.round(item.fibre_per_100g * ratio),
-          meal_type: item.meal_type,
-          logged_date: dateStr,
-          status: 'confirmed',
-          unit: item.unit,
-        });
-      })
-    );
-
-    const successCount = results.filter(Boolean).length;
-    setConfirmOpen(false);
-    setConfirmItems([]);
-    showToast(`${successCount} item${successCount !== 1 ? 's' : ''} logged ✓`);
     refreshLogs();
-    fetchFrequentFoods(user.id).then(setFrequentFoods);
-  };
+    if (user) fetchFrequentFoods(user.id, 9).then(setFrequentFoods);
+  }, [refreshLogs, user]);
 
   const handleEditSave = useCallback(async (result: {
     id: string;
@@ -234,8 +147,9 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="absolute inset-0 overflow-y-auto scrollbar-none">
-      <div className="px-4 pb-[120px]">
+    <div className="absolute inset-0 flex flex-col">
+      <div className="flex-1 overflow-y-auto scrollbar-none">
+      <div className="px-4 pb-6">
         {/* Header — centered date pill */}
         <motion.div
           className="flex justify-center items-center pt-14 mb-6"
@@ -266,7 +180,17 @@ export default function DashboardPage() {
           transition={{ duration: 0.5, delay: 0.1 }}
         >
           <CalorieRing consumed={totals.calories} target={profile.daily_calorie_goal} />
-          <MacroGrid calorieRatio={totals.calories / profile.daily_calorie_goal} />
+          <MacroGrid
+            protein={totals.protein}
+            proteinTarget={profile.daily_protein_goal}
+            carbs={totals.carbs}
+            carbsTarget={profile.daily_carbs_goal}
+            fat={totals.fat}
+            fatTarget={profile.daily_fat_goal}
+            fibre={totals.fibre}
+            fibreTarget={profile.daily_fibre_goal}
+            calorieRatio={totals.calories / profile.daily_calorie_goal}
+          />
         </motion.div>
 
         {/* Meals */}
@@ -331,15 +255,19 @@ export default function DashboardPage() {
           ));
         })()}
       </div>
+      </div>
+
+      <BottomNav />
 
       <FAB onClick={() => !editingEntry && setSheetOpen(true)} />
-      <BottomNav />
 
       <AddFoodSheet
         open={sheetOpen}
-        onClose={() => setSheetOpen(false)}
-        onSubmit={handleFoodSubmit}
+        onClose={handleSheetClose}
+        userId={user?.id ?? ''}
+        logDate={formatDate(selectedDate)}
         frequentFoods={frequentFoods}
+        onToast={showToast}
       />
 
       <EditFoodSheet
@@ -347,15 +275,6 @@ export default function DashboardPage() {
         onClose={() => setEditingEntry(null)}
         onSave={handleEditSave}
         onDelete={handleEditDelete}
-      />
-
-      <ConfirmFoodSheet
-        open={confirmOpen}
-        originalQuery={confirmQuery}
-        items={confirmItems}
-        loading={confirmLoading}
-        onClose={() => { setConfirmOpen(false); setConfirmItems([]); }}
-        onConfirm={handleConfirmLog}
       />
 
       <Toast message={toast.message} visible={toast.visible} action={toast.action} />

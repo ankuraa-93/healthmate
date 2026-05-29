@@ -26,7 +26,7 @@ export default function FoodCard({ entry, index, onClick }: FoodCardProps) {
           {entry.food_name.slice(0, 1).toUpperCase()}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-base font-semibold truncate">{entry.food_name}</div>
+          <div className="text-base font-semibold leading-snug">{entry.food_name}</div>
           {entry.status === 'confirmed' ? (
             <div className="text-[13px] text-text-secondary mt-px">
               <span>{entry.quantity_g}{unitLabel}</span>

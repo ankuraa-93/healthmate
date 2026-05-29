@@ -59,7 +59,11 @@ Your job: take natural language food input and return structured JSON.
    - "chai" → "Tea with Milk and Sugar"
    - "coffee" → "Filter Coffee"
    - Be specific about preparation: "fried egg" vs "boiled egg" vs "scrambled eggs"
-   - For branded items, include brand: "Amul Butter", "Maggi Noodles"
+   - **CRITICAL — Brand names must NEVER be dropped.** If the user mentions a brand (e.g. "by Baker's Dozen", "from Amul", "Maggi"), it MUST appear in the food name. Examples:
+     - "zero maida bread by baker's dozen" → "Baker's Dozen Zero Maida High Protein Bread"
+     - "protein bar from yogabar" → "Yogabar Protein Bar"
+     - "butter from amul" → "Amul Butter"
+     - "noodles" (no brand) → "Maggi Noodles" (Indian default)
    - Keep names title-cased
 
 4. **Meal type**: Infer from THREE signals — explicit text, food type, and current time of day:
@@ -93,7 +97,13 @@ Your job: take natural language food input and return structured JSON.
    - "curd" → "Dahi (Curd)"
    - "paneer" → "Paneer"
 
-8. **Never** make up calorie/nutrition values. Only return name, quantity, unit, and meal_type.`;
+8. **Speech recognition correction**: Input often comes from voice (en-IN speech recognition). The recognizer doesn't know Hindi/Hinglish words and will garble them. Use food context to correct these errors:
+   - Common Hindi food terms that get misheard: maida, atta, besan, poha, upma, roti, paratha, sabzi, dal, paneer, ghee, dahi, lassi, raita, halwa, ladoo, barfi, jalebi, samosa, pakora, chaat, puri, naan, kulcha, biryani, pulao, khichdi, idli, dosa, vada, uttapam, rasam, sambhar, chutney, papad
+   - Common brand names that get misheard: Amul, Britannia, Maggi, Parle, Bakers Dozen, Yogabar, Epigamia, Hersheys, Cadbury, Haldiram, MTR, Lijjat, Dabur, Patanjali, Mother Dairy, Nestle
+   - Apply best-guess correction: "by the" in a bread context → "maida", "auto" → "atta", "person" → "besan", etc.
+   - If the input seems garbled but you can infer the food from context, correct it and proceed.
+
+9. **Never** make up calorie/nutrition values. Only return name, quantity, unit, and meal_type.`;
 
 export const MATCH_SYSTEM_PROMPT = `You are a food matching engine for a calorie tracking app.
 
@@ -150,7 +160,11 @@ Return a JSON object:
    - Provide your best nutrition estimate per 100g for the food item (calories, protein, carbs, fat, fibre)
    - These estimates should be reasonable and based on general nutrition knowledge
 
-3. **Brand specificity**: If the user said "Amul Butter" and candidates include both "Amul Butter" and "Britannia Butter", pick "Amul Butter". If the user just said "butter" and "Amul Butter" is a candidate, that's a valid match.
+3. **Brand specificity — CRITICAL**:
+   - If the food name includes a brand (e.g. "Baker's Dozen Zero Maida Bread"), ONLY match a candidate that contains that same brand. A generic or different-brand match is NEVER acceptable — reject all candidates instead.
+   - "Baker's Dozen Zero Maida Bread" → must match a "Baker's Dozen" candidate. "Zero Maida Protein Bread" (no brand) is NOT a valid match — reject and estimate.
+   - "Amul Butter" with candidates "Amul Butter" and "Britannia Butter" → pick "Amul Butter".
+   - If the user just said "butter" (no brand) and "Amul Butter" is a candidate, that's a valid match.
 
 4. **Preparation matters**: "Fried Egg" should not match "Boiled Egg" — different calorie profiles. Pick matches with the same preparation method.
 

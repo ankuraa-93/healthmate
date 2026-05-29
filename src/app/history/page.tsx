@@ -8,11 +8,13 @@ import FoodCard from '@/components/FoodCard';
 import FAB from '@/components/FAB';
 import AddFoodSheet from '@/components/AddFoodSheet';
 import Toast from '@/components/Toast';
+import { useAuth } from '@/components/AuthProvider';
 import { mockTodayLogs } from '@/lib/mock-data';
 
 const daysWithLogs = [3, 7, 8, 12, 14, 15, 19, 21, 22, 25, 26];
 
 export default function HistoryPage() {
+  const { user } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<number | null>(new Date().getDate());
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -129,12 +131,13 @@ export default function HistoryPage() {
 
       <AddFoodSheet
         open={sheetOpen}
-        onClose={() => setSheetOpen(false)}
-        onSubmit={() => {
+        onClose={() => {
           setSheetOpen(false);
           setToast({ visible: true, message: 'Food logged ✓' });
           setTimeout(() => setToast({ visible: false, message: '' }), 2000);
         }}
+        userId={user?.id ?? ''}
+        logDate={selectedDay ? `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}` : new Date().toISOString().split('T')[0]}
       />
       <Toast message={toast.message} visible={toast.visible} />
     </div>

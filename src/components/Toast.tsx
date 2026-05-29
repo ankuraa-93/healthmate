@@ -16,7 +16,7 @@ export default function Toast({ message, visible, action }: ToastProps) {
     <AnimatePresence>
       {visible && (
         <motion.div
-          className="fixed bottom-10 left-1/2 bg-text-primary text-white px-5 py-3 rounded-lg text-[15px] font-medium whitespace-nowrap z-30 flex items-center gap-3"
+          className="fixed bottom-10 left-1/2 bg-text-primary text-white px-5 py-3 rounded-lg text-[15px] font-medium whitespace-nowrap z-50 flex items-center gap-3"
           initial={{ opacity: 0, y: 20, x: '-50%' }}
           animate={{ opacity: 1, y: 0, x: '-50%' }}
           exit={{ opacity: 0, y: 20, x: '-50%' }}

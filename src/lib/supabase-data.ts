@@ -115,10 +115,21 @@ export async function fetchFoodLibraryItem(id: string): Promise<FoodLibraryItem 
 
 // --- Frequently Logged ---
 
-export async function fetchFrequentFoods(userId: string, limit = 6): Promise<{ food_name: string; quantity_g: number; calories: number; unit: string; count: number }[]> {
+export async function fetchFrequentFoods(userId: string, limit = 6): Promise<{
+  food_name: string;
+  quantity_g: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fibre: number;
+  unit: string;
+  food_library_id: string | null;
+  count: number;
+}[]> {
   const { data, error } = await supabase
     .from('food_log')
-    .select('food_name, quantity_g, calories, unit')
+    .select('food_name, quantity_g, calories, protein, carbs, fat, fibre, unit, food_library_id')
     .eq('user_id', userId)
     .eq('status', 'confirmed')
     .order('created_at', { ascending: false });
@@ -128,7 +139,18 @@ export async function fetchFrequentFoods(userId: string, limit = 6): Promise<{ f
     return [];
   }
 
-  const counts = new Map<string, { food_name: string; quantity_g: number; calories: number; unit: string; count: number }>();
+  const counts = new Map<string, {
+    food_name: string;
+    quantity_g: number;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    fibre: number;
+    unit: string;
+    food_library_id: string | null;
+    count: number;
+  }>();
   for (const row of data ?? []) {
     const existing = counts.get(row.food_name);
     if (existing) {
@@ -138,7 +160,12 @@ export async function fetchFrequentFoods(userId: string, limit = 6): Promise<{ f
         food_name: row.food_name,
         quantity_g: row.quantity_g,
         calories: row.calories ?? 0,
+        protein: row.protein ?? 0,
+        carbs: row.carbs ?? 0,
+        fat: row.fat ?? 0,
+        fibre: row.fibre ?? 0,
         unit: row.unit,
+        food_library_id: row.food_library_id,
         count: 1,
       });
     }

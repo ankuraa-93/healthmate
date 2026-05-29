@@ -221,22 +221,41 @@
 - `src/components/ConfirmFoodSheet.tsx` — confirm/review UI
 - `src/app/page.tsx` — wired full flow
 
-## Step 6: Add Voice Input ✅ Code Complete (needs browser testing)
+## Step 6: Add Voice Input 🔄 Pivoting to Gemini Audio
 
-### What was done
+### Phase 1 — Web Speech API (done, but Hinglish issues)
 1. **Replaced mock recording** in `AddFoodSheet.tsx` with real Web Speech API
-   - `SpeechRecognition` with `lang='en-IN'`, `interimResults=true`, `continuous=true`
+   - `SpeechRecognition` with `interimResults=true`, `continuous=true`
    - Mic button conditionally rendered based on browser support (`speechSupported` derived value)
    - Recording state: waveform animation, "Listening..." placeholder, stop button
    - Transcribed text populates input for editing before submit
    - Sheet close auto-stops recognition
-2. **TypeScript declarations**: `src/types/speech.d.ts` — full type declarations for Web Speech API (SpeechRecognition, SpeechRecognitionEvent, etc.)
-3. **Cleanup**: removed unused `useEffect` import from ConfirmFoodSheet.tsx
+2. **TypeScript declarations**: `src/types/speech.d.ts` — full type declarations for Web Speech API
+3. **Speech transcript fix**: proper final/interim separation using `event.resultIndex` + `finalTranscriptRef` to accumulate finalized segments. Added `maxAlternatives: 1`.
+4. **Hinglish attempts** (all hit limitations):
+   - `en-IN` → can't recognize Hindi words ("maida" → "by the")
+   - `hi-IN` → outputs Devanagari script, not Roman
+   - `hi-Latn-IN` → falls back to `hi-IN` (Devanagari)
+   - Built `src/lib/transliterate.ts` — Devanagari → Roman transliteration as workaround (currently wired in)
+5. **Conclusion**: Web Speech API has no Hinglish (Hindi in Roman script) support. Transliteration works but is a workaround, not ideal.
 
-### What's needed
-- Build succeeds (`next build` passes)
-- **Needs browser testing in Chrome** (only browser with full Speech API support)
-- Test: tap mic → speak → see transcript → edit → submit → confirm → log
+### Phase 2 — Gemini Audio Input (planned, not started)
+**Decision**: Send audio directly to Gemini Flash instead of using Web Speech API for transcription. Gemini accepts audio natively and can parse food + transcribe in one call.
+
+**Why Gemini over Whisper API**:
+- Already have Gemini API key, no new service needed
+- Whisper has the same Hinglish problem (no code-switching, outputs Devanagari for Hindi)
+- Gemini handles Hinglish naturally as an LLM — understands context
+- Cheaper (~$0.001 per 10-sec clip vs Whisper's $0.006/min)
+- One call instead of two (audio → structured food items, skip transcription step)
+
+**Implementation plan**:
+1. Replace Web Speech API with **MediaRecorder API** in AddFoodSheet (capture audio as WebM/OGG)
+2. New API route `/api/parse-food-audio` — sends audio inline to Gemini Flash with parse system prompt
+3. Wire into existing flow: record audio → stop → "Processing..." → match API → confirm screen → log
+4. UX change: no real-time transcription while speaking. User records → stops → brief loading → confirm screen with parsed items
+5. Can delete `src/lib/transliterate.ts` and `src/types/speech.d.ts` after migration
+6. Keep speech recognition error correction in parse prompt as general robustness
 
 ## Step 7: Add External Nutrition Lookup ✅ Largely Complete
 
@@ -255,3 +274,108 @@ Original plan was USDA FoodData Central API. Gemini's web search grounding turne
 ## Step 8: Deploy — Not started
 - GitHub repo initialized (first commit done)
 - Needs: push to GitHub, connect Vercel, configure env vars
+
+---
+
+## Session: 2026-05-29 — UX fixes + Voice pivot
+
+### Changes made this session
+1. **Brand matching strengthened** (gemini.ts):
+   - PARSE prompt: brand names marked CRITICAL — must never be dropped from parsed food names
+   - MATCH prompt: if food name contains a brand, only a candidate with that same brand is acceptable. Generic/different-brand matches must be rejected (triggers web search fallback)
+   - Added speech recognition error correction guidance to parse prompt (common Hindi food terms, Indian brand names)
+
+2. **Food name wrapping** — removed `truncate` from FoodCard, ConfirmFoodSheet, and AddFoodSheet frequent foods. Long names now wrap with `leading-snug`.
+
+3. **ConfirmFoodSheet back button** — pressing back now reopens AddFoodSheet with original query pre-filled (via `initialInput` prop + inner component pattern for clean remount state)
+
+4. **AddFoodSheet close button** — X button added to header (top-right)
+
+5. **Fixed bottom nav scrolling** — restructured page.tsx from single scrollable div to flex column layout. Scrollable content and BottomNav are now siblings — nav stays pinned regardless of scroll.
+
+6. **AddFoodSheet refactored** to inner/outer component pattern (like ConfirmFoodSheet) to avoid React ESLint setState-in-effect rule while supporting `initialInput` prop.
+
+7. **Voice input**: hi-IN + Devanagari→Roman transliteration currently wired in. Planned pivot to Gemini audio input (see Step 6 Phase 2).
+
+## Session: 2026-05-29 — Log Food sheet redesign + Gemini audio
+
+### Bug fixes
+1. **MacroGrid hardcoded values** — protein/carbs/fat/fibre were using static placeholder values (45/82/18/8). Now receives actual totals and targets from dashboard via props.
+2. **Quick-add from frequent foods** — tapping frequent foods showed "logged" toast but never inserted to DB (was a TODO stub). Now properly inserts with full nutrition data.
+
+### Log Food sheet redesign
+Major rewrite of `AddFoodSheet.tsx` — merged the separate confirm screen into the log food sheet:
+
+1. **Logged foods tray** — confirmed items appear at top of sheet in a "Logged foods" section, grouped by meal type. Items are inserted to DB immediately when they appear (no separate confirm step).
+2. **Inline editing** — tray items are expandable (chevron) with quantity input, ±10/±50 pills, and delete button. Edits/deletes update DB in real-time.
+3. **Text flow** — type text → submit → textbox shows "Identifying food..." spinner → parse + match + insert → items appear in tray → textbox clears for more input.
+4. **Voice flow** — replaced Web Speech API with MediaRecorder API → audio blob sent to new `/api/parse-food-audio` route → Gemini Flash parses audio directly → match + insert → items in tray.
+5. **Frequent food toggle** — + icon becomes ✓ when selected, food appears in tray. Tap ✓ to remove (deletes from DB). Horizontal scroll grid layout: 3 rows per column, columns peek for scroll affordance.
+6. **Done button** — top-right header, just closes the sheet (items already in DB). Backdrop click also closes.
+7. **Additive flow** — textbox clears after each parse, user can keep adding via text, voice, or frequent foods in the same session.
+
+### New API route
+- `/api/parse-food-audio` — accepts audio blob (FormData), base64-encodes it, sends as inline data to Gemini Flash with the parse system prompt. Returns structured food items in same format as `/api/parse-food`.
+
+### Removed
+- `ConfirmFoodSheet` no longer used from dashboard (file kept but unused)
+- Web Speech API replaced by MediaRecorder API
+- Devanagari→Roman transliteration no longer imported (was a workaround for Web Speech hi-IN)
+- Attached food chips in input bar (replaced by tray)
+
+## Session: 2026-05-29 — Voice input rewrite (Groq Whisper)
+
+### Problem
+Voice input wasn't working — `gemini-2.5-flash` returns 503 on ALL audio requests (service-level issue). Pivoted through multiple approaches.
+
+### Investigation & iterations
+1. **Gemini 2.5 Flash audio** — 503 on every request regardless of format (webm, mp4, wav). Text works fine.
+2. **Gemini 3-flash-preview** — worked but slow (~5s) and inaccurate (merged/dropped food items due to weaker prompt-following)
+3. **Two-step approach adopted** — transcribe audio separately, show in textbox for user review, then parse text with gemini-2.5-flash
+4. **Gemini 3.5 Flash for transcription** — accurate but slow (~5.4s)
+5. **Groq Whisper** — sub-second latency, landed on this
+
+### Groq Whisper tuning
+- `whisper-large-v3-turbo`: fast but garbles Hindi words ("rajma masala" → "flat-murves")
+- `whisper-large-v3` (full): better accuracy, still sub-second
+- Contextual sentence prompt: caused hallucination (Whisper continued the prompt instead of transcribing)
+- Word list prompt: best results — Hindi food terms recognized correctly
+- `language=en` + `temperature=0`: reduces hallucination
+- Prompt limit: 896 characters max (Groq rejects longer)
+
+### Audio capture fix (critical)
+Root cause of all transcription failures: `getUserMedia()` takes ~500-750ms to initialize. User starts speaking immediately on tap, so the first words were lost. All "garbled" transcriptions were actually correct transcriptions of truncated audio.
+
+**Fix: mic pre-warming** — `getUserMedia` called when AddFoodSheet opens (on mount). Stream stored in a ref and reused for each recording. When user taps record, MediaRecorder starts instantly from the pre-warmed stream. Stream released on sheet close (unmount cleanup).
+
+Other audio improvements:
+- `recorder.start(250)` — timeslice capture every 250ms (was all-at-once on stop)
+- `audioBitsPerSecond: 128000` — explicit bitrate
+- `echoCancellation`, `noiseSuppression`, `autoGainControl` constraints
+- Guard against double-start (`if recorder.state === 'recording' return`)
+
+### Final voice architecture
+1. **Mic pre-warm**: `getUserMedia` on sheet open, stream cached in ref
+2. **Record**: MediaRecorder with pre-warmed stream, 250ms timeslice, 128kbps
+3. **Transcribe**: Groq Whisper `whisper-large-v3`, `language=en`, `temperature=0`, word list prompt with Indian food terms + brand names (453/896 chars)
+4. **Show transcript in textbox**: user reviews and edits before submitting
+5. **Parse**: user hits submit → existing `/api/parse-food` with `gemini-2.5-flash` (same path as text input)
+
+### Other fixes this session
+- **Toast z-index** bumped to z-50 (was z-30, hidden behind AddFoodSheet)
+- **Error toasts** added for all failure points (mic denied, parse error, match error, empty results)
+- **Loading state gap** fixed — `setLoading(true)` now fires immediately on recording stop
+
+### Files changed
+- `src/app/api/parse-food-audio/route.ts` — rewritten: Groq Whisper transcription (was Gemini audio parsing)
+- `src/components/AddFoodSheet.tsx` — voice flow: mic pre-warm, transcribe → show in textbox → user submits; error toasts; 128kbps audio
+- `src/components/Toast.tsx` — z-index 30 → 50
+- `src/app/page.tsx` — pass `onToast` to AddFoodSheet
+- `src/lib/gemini.ts` — removed `flashModelAudio` (no longer needed)
+
+### Dependencies added
+- Groq API (`GROQ_API_KEY` in `.env.local`) — for Whisper transcription
+
+### Next steps (priority order)
+1. **Step 8**: Deploy (GitHub → Vercel + Supabase env vars — needs `GROQ_API_KEY` added)
+2. **Enhancements**: See `enhancements.md` for parked ideas
