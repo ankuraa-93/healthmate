@@ -5,7 +5,7 @@ import { Home, Settings } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const tabs = [
-  { label: 'Today', icon: Home, path: '/' },
+  { label: 'Home', icon: Home, path: '/' },
   { label: 'Settings', icon: Settings, path: '/settings' },
 ];
 
@@ -14,7 +14,7 @@ export default function BottomNav() {
   const router = useRouter();
 
   return (
-    <nav className="flex-shrink-0 h-[83px] bg-bg-primary border-t border-bg-tertiary/50 flex items-start justify-around pt-1.5 z-10">
+    <nav className="flex-shrink-0 pb-[max(8px,env(safe-area-inset-bottom))] bg-bg-primary border-t border-bg-tertiary/50 flex items-start justify-around pt-1.5 z-10">
       {tabs.map((tab) => {
         const isActive = pathname === tab.path;
         return (

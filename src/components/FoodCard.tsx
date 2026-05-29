@@ -54,8 +54,8 @@ export default function FoodCard({ entry, index, onClick, onDelete }: FoodCardPr
     >
       {/* Delete button behind */}
       <motion.div
-        className="absolute inset-y-0 right-0 flex items-center justify-center w-20 bg-destructive rounded-r-xl cursor-pointer"
-        style={{ opacity: deleteOpacity, scale: deleteScale }}
+        className="absolute inset-0 right-0 flex items-center justify-end pr-6 bg-destructive rounded-xl cursor-pointer"
+        style={{ opacity: deleteOpacity }}
         onClick={handleDelete}
       >
         <Trash2 size={20} className="text-white" />

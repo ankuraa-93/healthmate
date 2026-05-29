@@ -198,6 +198,30 @@ export default function DashboardPage() {
 
   return (
     <div className="absolute inset-0 flex flex-col">
+      {/* Fixed date header */}
+      <div className="flex-shrink-0 pt-[max(env(safe-area-inset-top),12px)] pb-2 bg-bg-primary z-10">
+        <motion.div
+          className="flex justify-center items-center"
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+        >
+          <button
+            className="relative inline-flex items-center gap-1.5 bg-bg-secondary rounded-full px-3.5 py-2 cursor-pointer border-none"
+            onClick={() => datePickerRef.current?.showPicker()}
+          >
+            <Calendar size={16} className="text-text-secondary" />
+            <span className="text-[17px] font-medium text-text-primary">{dateStr}</span>
+            <input
+              ref={datePickerRef}
+              type="date"
+              className="absolute opacity-0 w-0 h-0 pointer-events-none"
+              onChange={handleDatePick}
+            />
+          </button>
+        </motion.div>
+      </div>
+
       <div
         ref={scrollRef}
         className="flex-1 overflow-y-auto scrollbar-none"
@@ -218,28 +242,7 @@ export default function DashboardPage() {
           <RefreshCw size={20} className={pullDistance > 50 || refreshing ? 'text-accent' : 'text-text-tertiary'} />
         </motion.div>
       </motion.div>
-      <div className="px-4 pb-6">
-        {/* Header — centered date pill */}
-        <motion.div
-          className="flex justify-center items-center pt-14 mb-6"
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-        >
-          <button
-            className="relative inline-flex items-center gap-1.5 bg-bg-secondary rounded-full px-3.5 py-2 cursor-pointer border-none"
-            onClick={() => datePickerRef.current?.showPicker()}
-          >
-            <Calendar size={16} className="text-text-secondary" />
-            <span className="text-[17px] font-medium text-text-primary">{dateStr}</span>
-            <input
-              ref={datePickerRef}
-              type="date"
-              className="absolute opacity-0 w-0 h-0 pointer-events-none"
-              onChange={handleDatePick}
-            />
-          </button>
-        </motion.div>
+      <div className="px-4 pb-4 pt-2">
 
         {/* Summary: ring + macros */}
         <motion.div
