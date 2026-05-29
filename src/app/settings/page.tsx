@@ -53,7 +53,7 @@ export default function SettingsPage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
         >
-          <span className="text-[22px] font-semibold">Settings</span>
+          <span className="text-[22px] font-medium">Settings</span>
         </motion.div>
 
         {/* Profile section */}

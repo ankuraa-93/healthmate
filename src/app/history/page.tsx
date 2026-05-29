@@ -40,7 +40,7 @@ export default function HistoryPage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
         >
-          <span className="text-[22px] font-semibold">History</span>
+          <span className="text-[22px] font-medium">History</span>
         </motion.div>
 
         {/* Calendar */}
@@ -55,7 +55,7 @@ export default function HistoryPage() {
             <button onClick={prevMonth} className="bg-transparent border-none cursor-pointer text-text-secondary p-1">
               <ChevronLeft size={20} />
             </button>
-            <span className="text-base font-semibold">{monthName}</span>
+            <span className="text-base font-medium">{monthName}</span>
             <button onClick={nextMonth} className="bg-transparent border-none cursor-pointer text-text-secondary p-1">
               <ChevronRight size={20} />
             </button>
@@ -137,7 +137,7 @@ export default function HistoryPage() {
           setTimeout(() => setToast({ visible: false, message: '' }), 2000);
         }}
         userId={user?.id ?? ''}
-        logDate={selectedDay ? `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}` : new Date().toISOString().split('T')[0]}
+        logDate={selectedDay ? `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}` : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`}
       />
       <Toast message={toast.message} visible={toast.visible} />
     </div>

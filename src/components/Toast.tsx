@@ -26,7 +26,7 @@ export default function Toast({ message, visible, action }: ToastProps) {
           {action && (
             <button
               onClick={action.onPress}
-              className="text-accent font-semibold bg-transparent border-none cursor-pointer text-[15px]"
+              className="text-accent font-medium bg-transparent border-none cursor-pointer text-[15px]"
             >
               {action.label}
             </button>

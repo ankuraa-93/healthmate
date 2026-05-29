@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Calendar } from 'lucide-react';
+import { useState, useCallback, useRef, useEffect, TouchEvent } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Calendar, RefreshCw } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
 import CalorieRing from '@/components/CalorieRing';
 import MacroGrid from '@/components/MacroGrid';
@@ -16,7 +16,10 @@ import { fetchFoodLogs, fetchProfile, updateFoodLog, deleteFoodLog, fetchFrequen
 import { FoodLogEntry, Profile } from '@/lib/types';
 
 function formatDate(date: Date): string {
-  return date.toISOString().split('T')[0];
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 const defaultProfile: Profile = {
@@ -46,6 +49,40 @@ export default function DashboardPage() {
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(null);
   const datePickerRef = useRef<HTMLInputElement>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [refreshing, setRefreshing] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
+  const touchStartY = useRef(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const handleTouchStart = (e: TouchEvent) => {
+    if (scrollRef.current && scrollRef.current.scrollTop === 0) {
+      touchStartY.current = e.touches[0].clientY;
+    }
+  };
+
+  const handleTouchMove = (e: TouchEvent) => {
+    if (!scrollRef.current || scrollRef.current.scrollTop > 0) return;
+    const delta = e.touches[0].clientY - touchStartY.current;
+    if (delta > 0) {
+      setPullDistance(Math.min(delta * 0.4, 80));
+    }
+  };
+
+  const handleTouchEnd = async () => {
+    if (pullDistance > 50 && !refreshing) {
+      setRefreshing(true);
+      setPullDistance(50);
+      if (user) {
+        await Promise.all([
+          fetchFoodLogs(user.id, formatDate(selectedDate)).then(setLogs),
+          fetchProfile(user.id).then(p => { if (p) setProfile(p); }),
+          fetchFrequentFoods(user.id, 9).then(setFrequentFoods),
+        ]);
+      }
+      setRefreshing(false);
+    }
+    setPullDistance(0);
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -133,6 +170,19 @@ export default function DashboardPage() {
     }
   }, [logs, showToast]);
 
+  const handleSwipeDelete = useCallback(async (entryId: string) => {
+    const deletedEntry = logs.find(log => log.id === entryId);
+    if (!deletedEntry) return;
+
+    const success = await deleteFoodLog(entryId);
+    if (success) {
+      setLogs(prev => prev.filter(log => log.id !== entryId));
+      showToast(`${deletedEntry.food_name} deleted`, 3000);
+    } else {
+      showToast('Failed to delete');
+    }
+  }, [logs, showToast]);
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const isToday = selectedDate.toDateString() === today.toDateString();
@@ -148,7 +198,26 @@ export default function DashboardPage() {
 
   return (
     <div className="absolute inset-0 flex flex-col">
-      <div className="flex-1 overflow-y-auto scrollbar-none">
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto scrollbar-none"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+      {/* Pull-to-refresh indicator */}
+      <motion.div
+        className="flex justify-center items-center overflow-hidden"
+        animate={{ height: pullDistance || refreshing ? Math.max(pullDistance, refreshing ? 50 : 0) : 0 }}
+        transition={pullDistance > 0 ? { duration: 0 } : { duration: 0.3 }}
+      >
+        <motion.div
+          animate={refreshing ? { rotate: 360 } : { rotate: pullDistance * 3 }}
+          transition={refreshing ? { duration: 0.8, repeat: Infinity, ease: 'linear' } : { duration: 0 }}
+        >
+          <RefreshCw size={20} className={pullDistance > 50 || refreshing ? 'text-accent' : 'text-text-tertiary'} />
+        </motion.div>
+      </motion.div>
       <div className="px-4 pb-6">
         {/* Header — centered date pill */}
         <motion.div
@@ -162,7 +231,7 @@ export default function DashboardPage() {
             onClick={() => datePickerRef.current?.showPicker()}
           >
             <Calendar size={16} className="text-text-secondary" />
-            <span className="text-[17px] font-semibold text-text-primary">{dateStr}</span>
+            <span className="text-[17px] font-medium text-text-primary">{dateStr}</span>
             <input
               ref={datePickerRef}
               type="date"
@@ -200,7 +269,7 @@ export default function DashboardPage() {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
         >
-          <span className="text-xl font-semibold">Meals</span>
+          <span className="text-xl font-medium">Meals</span>
         </motion.div>
 
         {(() => {
@@ -240,6 +309,7 @@ export default function DashboardPage() {
                 <span className="text-[12px] font-medium text-text-tertiary uppercase tracking-wide">{group.label}</span>
                 <div className="flex-1 h-px bg-bg-tertiary" />
               </div>
+              <AnimatePresence>
               {group.entries.map((entry) => {
                 const idx = cardIndex++;
                 return (
@@ -248,9 +318,11 @@ export default function DashboardPage() {
                     entry={entry}
                     index={idx}
                     onClick={entry.status === 'confirmed' ? () => setEditingEntry(entry) : undefined}
+                    onDelete={entry.status === 'confirmed' ? handleSwipeDelete : undefined}
                   />
                 );
               })}
+              </AnimatePresence>
             </div>
           ));
         })()}

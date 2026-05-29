@@ -117,7 +117,7 @@ export default function EditFoodSheet({ entry, onClose, onSave, onDelete }: Edit
                 <div className="w-11 h-11 rounded-[10px] flex-shrink-0 bg-bg-tertiary flex items-center justify-center text-lg">
                   {entry.food_name.slice(0, 1).toUpperCase()}
                 </div>
-                <span className="text-[22px] font-semibold flex-1">{entry.food_name}</span>
+                <span className="text-[22px] font-medium flex-1">{entry.food_name}</span>
               </motion.div>
 
               {/* Quantity */}
@@ -138,7 +138,7 @@ export default function EditFoodSheet({ entry, onClose, onSave, onDelete }: Edit
                       pattern="[0-9]*"
                       value={quantity}
                       onChange={(e) => handleQuantityChange(e.target.value)}
-                      className="flex-1 bg-transparent border-none text-[17px] font-semibold text-right outline-none w-full"
+                      className="flex-1 bg-transparent border-none text-[17px] font-medium text-right outline-none w-full"
                     />
                     <span className="text-[15px] text-text-secondary ml-1.5">{unitLabel}</span>
                   </div>
@@ -179,7 +179,7 @@ export default function EditFoodSheet({ entry, onClose, onSave, onDelete }: Edit
                     <motion.button
                       key={type}
                       onClick={() => setMealType(type)}
-                      className={`flex-1 rounded-full py-2 text-[13px] font-semibold border-none cursor-pointer capitalize transition-colors ${
+                      className={`flex-1 rounded-full py-2 text-[13px] font-medium border-none cursor-pointer capitalize transition-colors ${
                         mealType === type
                           ? 'bg-accent text-white'
                           : 'bg-bg-secondary text-text-secondary'
@@ -200,7 +200,7 @@ export default function EditFoodSheet({ entry, onClose, onSave, onDelete }: Edit
                 transition={{ delay: 0.25 }}
               >
                 <div className="flex items-baseline gap-1.5 mb-3">
-                  <span className="text-[28px] font-bold">{nutrition.calories}</span>
+                  <span className="text-[28px] font-semibold">{nutrition.calories}</span>
                   <span className="text-[15px] text-text-secondary">cal</span>
                 </div>
                 <div className="grid grid-cols-2 gap-y-2.5 gap-x-8">
@@ -213,7 +213,7 @@ export default function EditFoodSheet({ entry, onClose, onSave, onDelete }: Edit
                     <div key={macro.label} className="flex items-center gap-2">
                       <macro.icon size={14} className="text-text-secondary flex-shrink-0" />
                       <span className="text-[13px] text-text-secondary">{macro.label}</span>
-                      <span className="text-[13px] font-semibold ml-auto">{macro.value}g</span>
+                      <span className="text-[13px] font-medium ml-auto">{macro.value}g</span>
                     </div>
                   ))}
                 </div>
@@ -225,7 +225,7 @@ export default function EditFoodSheet({ entry, onClose, onSave, onDelete }: Edit
               <motion.button
                 onClick={handleSave}
                 disabled={!hasChanges}
-                className="w-full bg-accent text-white rounded-xl h-[50px] text-[17px] font-semibold border-none cursor-pointer disabled:opacity-40 disabled:cursor-default"
+                className="w-full bg-accent text-white rounded-xl h-[50px] text-[17px] font-medium border-none cursor-pointer disabled:opacity-40 disabled:cursor-default"
                 whileTap={hasChanges ? { scale: 0.97 } : undefined}
               >
                 Save Changes

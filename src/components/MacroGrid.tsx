@@ -40,7 +40,7 @@ export default function MacroGrid({ protein, proteinTarget, carbs, carbsTarget, 
         const barColor = getBarColor(macro.value, macro.target, colorsActive);
         return (
           <div key={macro.key} className="flex flex-col gap-1">
-            <span className="text-[13px] font-bold text-text-primary flex items-center gap-1">
+            <span className="text-[13px] font-semibold text-text-primary flex items-center gap-1">
               {macro.label}
               <macro.icon size={14} className="text-text-secondary" />
             </span>

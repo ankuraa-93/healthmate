@@ -14,7 +14,9 @@ export default function AuthPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -54,6 +56,23 @@ export default function AuthPage() {
     router.refresh();
   };
 
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError('Enter your email first');
+      return;
+    }
+    setError('');
+    setLoading(true);
+    const supabase = createClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    setLoading(false);
+    if (error) {
+      setError(error.message);
+    } else {
+      setSuccess('Password reset link sent — check your email');
+    }
+  };
+
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center px-8 bg-bg-primary">
       <motion.div
@@ -74,7 +93,7 @@ export default function AuthPage() {
               <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
             </svg>
           </motion.div>
-          <h1 className="text-2xl font-bold">HealthMate</h1>
+          <h1 className="text-2xl font-semibold">HealthMate</h1>
           <p className="text-text-secondary text-sm mt-1">Track your calories with natural language</p>
         </div>
 
@@ -85,8 +104,8 @@ export default function AuthPage() {
             return (
               <button
                 key={label}
-                onClick={() => { setIsSignUp(i === 1); setError(''); }}
-                className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border-none cursor-pointer transition-all ${
+                onClick={() => { setIsSignUp(i === 1); setError(''); setSuccess(''); }}
+                className={`flex-1 py-2.5 rounded-lg text-sm font-medium border-none cursor-pointer transition-all ${
                   active
                     ? 'bg-bg-primary text-text-primary shadow-sm'
                     : 'bg-transparent text-text-secondary'
@@ -106,6 +125,17 @@ export default function AuthPage() {
             animate={{ opacity: 1, y: 0 }}
           >
             {error}
+          </motion.div>
+        )}
+
+        {/* Success */}
+        {success && (
+          <motion.div
+            className="bg-accent/10 text-accent text-sm rounded-xl px-4 py-3 mb-4"
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            {success}
           </motion.div>
         )}
 
@@ -163,12 +193,22 @@ export default function AuthPage() {
           <motion.button
             type="submit"
             disabled={loading}
-            className="w-full bg-accent text-white border-none rounded-xl py-3.5 text-base font-semibold cursor-pointer mt-2 disabled:opacity-60"
+            className="w-full bg-accent text-white border-none rounded-xl py-3.5 text-base font-medium cursor-pointer mt-2 disabled:opacity-60"
             whileTap={{ scale: 0.97 }}
           >
             {loading ? 'Please wait...' : isSignUp ? 'Create Account' : 'Sign In'}
           </motion.button>
         </form>
+
+        {!isSignUp && (
+          <button
+            onClick={handleForgotPassword}
+            disabled={loading}
+            className="w-full text-center text-sm text-text-secondary bg-transparent border-none cursor-pointer mt-4 hover:text-accent transition-colors disabled:opacity-60"
+          >
+            Forgot password?
+          </button>
+        )}
       </motion.div>
     </div>
   );

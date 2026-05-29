@@ -340,11 +340,11 @@ function AddFoodSheetInner({ onClose, userId, logDate, frequentFoods = [], onToa
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-4 flex-shrink-0">
-          <span className="text-[22px] font-semibold">Log Food</span>
+          <span className="text-[22px] font-medium">Log Food</span>
           <div className="flex items-center gap-2">
             {trayItems.length > 0 ? (
               <motion.button
-                className="h-8 px-4 rounded-full bg-accent border-none text-[14px] font-semibold text-white cursor-pointer flex items-center gap-1.5"
+                className="h-8 px-4 rounded-full bg-accent border-none text-[14px] font-medium text-white cursor-pointer flex items-center gap-1.5"
                 onClick={onClose}
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -420,13 +420,13 @@ function AddFoodSheetInner({ onClose, userId, logDate, frequentFoods = [], onToa
                                   {(item.matched_library_name || item.name).slice(0, 1).toUpperCase()}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <div className="text-[15px] font-semibold leading-snug">{item.matched_library_name || item.name}</div>
+                                  <div className="text-[15px] font-medium leading-snug">{item.matched_library_name || item.name}</div>
                                   <div className="text-[12px] text-text-secondary mt-0.5">
                                     {item.quantity_g}{unitLabel} · P:{nutrition.protein} C:{nutrition.carbs} F:{nutrition.fat} Fi:{nutrition.fibre}
                                   </div>
                                 </div>
                                 <div className="flex-shrink-0 text-right">
-                                  <div className="text-[16px] font-bold">{nutrition.calories}</div>
+                                  <div className="text-[16px] font-semibold">{nutrition.calories}</div>
                                   <div className="text-[11px] text-text-secondary">cal</div>
                                 </div>
                                 <motion.div
@@ -454,7 +454,7 @@ function AddFoodSheetInner({ onClose, userId, logDate, frequentFoods = [], onToa
                                           <input
                                             type="text"
                                             inputMode="numeric"
-                                            className="flex-1 bg-transparent border-none text-[17px] font-semibold text-right outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                            className="flex-1 bg-transparent border-none text-[17px] font-medium text-right outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                             value={item.quantity_g}
                                             onChange={e => handleUpdateQuantity(idx, parseInt(e.target.value) || 0)}
                                             onClick={e => e.stopPropagation()}
@@ -496,7 +496,7 @@ function AddFoodSheetInner({ onClose, userId, logDate, frequentFoods = [], onToa
                 <div className="flex justify-between items-center py-2.5 mt-1 border-t border-bg-tertiary/50">
                   <span className="text-[13px] font-medium text-text-secondary">Total</span>
                   <div>
-                    <span className="text-[16px] font-bold">
+                    <span className="text-[16px] font-semibold">
                       {trayItems.reduce((sum, item) => sum + scaleNutrition(item).calories, 0)}
                     </span>
                     <span className="text-[13px] text-text-secondary ml-1">cal</span>
@@ -532,7 +532,7 @@ function AddFoodSheetInner({ onClose, userId, logDate, frequentFoods = [], onToa
                               {food.food_name.slice(0, 1).toUpperCase()}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="text-[13px] font-semibold leading-snug truncate">{food.food_name}</div>
+                              <div className="text-[13px] font-medium leading-snug truncate">{food.food_name}</div>
                               <div className="text-[11px] text-text-secondary mt-0.5">
                                 {food.quantity_g}{unitLabel} · {food.calories} cal
                               </div>

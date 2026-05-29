@@ -40,20 +40,20 @@ export default function CalorieRing({ consumed, target }: CalorieRingProps) {
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-[30px] font-bold tracking-tight flex items-center gap-1">
+          <span className="text-[30px] font-semibold tracking-tight flex items-center gap-1">
             <motion.span
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.3 }}
             >
-              {consumed.toLocaleString()}
+              {consumed}
             </motion.span>
             <svg width="16" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
               <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
             </svg>
           </span>
           <span className="text-[13px] text-text-secondary mt-0.5">
-            of {target.toLocaleString()} cal
+            of {target} cal
           </span>
         </div>
       </div>
