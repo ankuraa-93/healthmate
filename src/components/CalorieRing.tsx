@@ -7,19 +7,18 @@ interface CalorieRingProps {
   target: number;
 }
 
-function getColor(ratio: number, colorsActive: boolean): string {
-  if (!colorsActive) return 'var(--color-light-blue)';
-  if (ratio < 0.8 || ratio > 1.1) return 'var(--color-destructive)';
+function getColor(ratio: number): string {
+  if (ratio < 0.75) return 'var(--color-light-green)';
   if (ratio < 0.9) return 'var(--color-warning)';
-  return 'var(--color-accent)';
+  if (ratio <= 1.1) return 'var(--color-accent)';
+  return 'var(--color-destructive)';
 }
 
 export default function CalorieRing({ consumed, target }: CalorieRingProps) {
   const ratio = consumed / target;
   const circumference = 2 * Math.PI * 65;
   const offset = circumference * (1 - Math.min(ratio, 1));
-  const colorsActive = ratio >= 0.8;
-  const color = getColor(ratio, colorsActive);
+  const color = getColor(ratio);
 
   return (
     <div className="flex flex-col items-center flex-shrink-0">

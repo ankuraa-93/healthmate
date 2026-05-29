@@ -15,17 +15,24 @@ interface MacroProps {
   calorieRatio: number;
 }
 
-function getBarColor(value: number, target: number, colorsActive: boolean): string {
-  if (!colorsActive) return 'var(--color-light-blue)';
-  const ratio = value / target;
-  if (ratio < 0.8 || ratio > 1.1) return 'var(--color-destructive)';
-  if (ratio < 0.9) return 'var(--color-warning)';
-  return 'var(--color-accent)';
+function getBarColor(macroRatio: number, calRatio: number): string {
+  if (calRatio >= 0.75) {
+    if (macroRatio < 0.75) return 'var(--color-destructive)';
+    if (macroRatio < 0.9) return 'var(--color-warning)';
+    if (macroRatio <= 1.1) return 'var(--color-accent)';
+    return 'var(--color-destructive)';
+  }
+
+  const low = calRatio * 0.75;
+  const mid = calRatio * 0.9;
+  const high = calRatio * 1.1;
+
+  if (macroRatio < low || macroRatio > high) return 'var(--color-light-red)';
+  if (macroRatio < mid) return 'var(--color-light-yellow)';
+  return 'var(--color-light-green)';
 }
 
 export default function MacroGrid({ protein, proteinTarget, carbs, carbsTarget, fat, fatTarget, fibre, fibreTarget, calorieRatio }: MacroProps) {
-  const colorsActive = calorieRatio >= 0.8;
-
   const macros = [
     { key: 'protein', label: 'Protein', icon: Drumstick, value: protein, target: proteinTarget },
     { key: 'carbs', label: 'Carbs', icon: Wheat, value: carbs, target: carbsTarget },
@@ -37,7 +44,8 @@ export default function MacroGrid({ protein, proteinTarget, carbs, carbsTarget, 
     <div className="grid grid-cols-2 gap-3 gap-x-4 flex-1">
       {macros.map((macro, i) => {
         const pct = Math.min((macro.value / macro.target) * 100, 100);
-        const barColor = getBarColor(macro.value, macro.target, colorsActive);
+        const macroRatio = macro.value / macro.target;
+        const barColor = getBarColor(macroRatio, calorieRatio);
         return (
           <div key={macro.key} className="flex flex-col gap-1">
             <span className="text-[13px] font-semibold text-text-primary flex items-center gap-1">

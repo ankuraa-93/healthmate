@@ -39,6 +39,8 @@
 - Weekly/monthly calorie and macro trends (charts)
 - History tab — revisit calendar view design (user didn't love v1 calendar)
 - High protein, high carb, high fat, high fibre tags instead of detailed values
+- Give cues to the user during on what macros to focus on
+- Loading states animations/visuals + other "cool" things
 
 
 ---
