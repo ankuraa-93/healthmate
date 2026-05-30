@@ -493,8 +493,11 @@ Moved food suggestions from AddFoodSheet to the dashboard, with pattern-based lo
    - "Logging X foods..." (during DB writes, shown for at least 400ms)
    - Voice flow: "Transcribing..." (during Groq Whisper)
 
+7. **Meal calorie totals on dashboard** — each meal card header shows total calories inline after the meal name with a dot separator (e.g. "BREAKFAST · 380 cal"). Only shown when confirmed entries exist.
+
 ### Files changed
 - `src/components/AddFoodSheet.tsx` — all changes above (loadingMessage state replaces boolean, savingIndices set, ChevronDown, delay helper)
+- `src/app/page.tsx` — meal calorie totals in card headers
 
 ### Next steps
 - Remove dummy suggestion data from page.tsx

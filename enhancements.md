@@ -46,7 +46,7 @@ Instructions:
 > "Did you mean?" for confusing inputs. Flawless frequently logged food logic.
 
 - "Did you mean?" disambiguation flow — when Gemini encounters ambiguous terms (e.g., "eggs" could be scrambled, boiled, fried, omelette), show a disambiguation screen with options instead of defaulting. Needs new UI screen + Gemini prompt changes to flag ambiguous items.
-- Meal level summaries of cal + macros
+- Meal level summaries of cal + macros — calories done (inline after meal name with dot separator), macros not yet
 - Add Noice (Swiggy Instamart private label) products — 200+ artisanal items across bakery, dairy, snacks, beverages, sweets. No public nutrition data yet; need actual packaging labels from Swiggy app or physical products. Start with top sellers: malai paneer, butter cookies, coconut water, spicy potato chips, banana chips, kaju katli, Punjabi lassi, sourdough bread.
 
 ---
