@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Eye, EyeOff } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
 
@@ -166,30 +166,34 @@ export default function AuthPage() {
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
-          {isSignUp && (
-            <motion.div
-              className="relative"
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-            >
-              <input
-                type={showConfirmPassword ? 'text' : 'password'}
-                placeholder="Confirm Password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full bg-bg-secondary border-none rounded-xl px-4 py-3.5 pr-11 text-base text-text-primary outline-none placeholder:text-text-tertiary focus:ring-2 focus:ring-accent/25 transition-shadow"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer p-0.5 text-text-tertiary"
+          <AnimatePresence initial={false}>
+            {isSignUp && (
+              <motion.div
+                key="confirm-password"
+                className="relative overflow-hidden"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2, ease: 'easeInOut' }}
               >
-                {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </motion.div>
-          )}
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  placeholder="Confirm Password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full bg-bg-secondary border-none rounded-xl px-4 py-3.5 pr-11 text-base text-text-primary outline-none placeholder:text-text-tertiary focus:ring-2 focus:ring-accent/25 transition-shadow"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer p-0.5 text-text-tertiary"
+                >
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
           <motion.button
             type="submit"
             disabled={loading}
@@ -200,15 +204,26 @@ export default function AuthPage() {
           </motion.button>
         </form>
 
-        {!isSignUp && (
-          <button
-            onClick={handleForgotPassword}
-            disabled={loading}
-            className="w-full text-center text-sm text-text-secondary bg-transparent border-none cursor-pointer mt-4 hover:text-accent transition-colors disabled:opacity-60"
-          >
-            Forgot password?
-          </button>
-        )}
+        <AnimatePresence initial={false}>
+          {!isSignUp && (
+            <motion.div
+              key="forgot-password"
+              className="overflow-hidden"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2, ease: 'easeInOut' }}
+            >
+              <button
+                onClick={handleForgotPassword}
+                disabled={loading}
+                className="w-full text-center text-sm text-text-secondary bg-transparent border-none cursor-pointer mt-4 hover:text-accent transition-colors disabled:opacity-60"
+              >
+                Forgot password?
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
     </div>
   );

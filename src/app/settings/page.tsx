@@ -45,8 +45,8 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="absolute inset-0 overflow-y-auto scrollbar-none">
-      <div className="px-4 pb-[120px]">
+    <div className="absolute inset-0 flex flex-col">
+      <div className="flex-1 overflow-y-auto scrollbar-none px-4 pb-8">
         {/* Header */}
         <motion.div
           className="pt-14 mb-6"

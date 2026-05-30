@@ -426,3 +426,61 @@ Other audio improvements:
 - `src/app/auth/page.tsx` — forgot password flow, font weight
 - `src/app/history/page.tsx` — timezone fix, font weight
 - `src/app/settings/page.tsx` — font weight
+
+## Session: 2026-05-30 — Suggested foods widget + UX fixes
+
+### Suggested foods widget (replaces "Frequently logged")
+Moved food suggestions from AddFoodSheet to the dashboard, with pattern-based logic instead of simple frequency counts.
+
+1. **Pattern-based suggestion logic** (`fetchSuggestions` in `supabase-data.ts`):
+   - **Daily**: food logged in same meal on both yesterday and day before yesterday
+   - **Weekly**: food logged in same meal on same day-of-week last week AND 2 weeks ago
+   - **Biweekly**: food logged in same meal on same day-of-week 2 weeks ago AND 4 weeks ago
+   - Fetches food_log for 5 lookback dates (d-1, d-2, d-7, d-14, d-28), computes patterns in JS
+   - Daily matches shown first (strongest signal), deduplicated across patterns
+   - Already-logged foods filtered out of suggestions
+
+2. **SuggestedFoods component** (`src/components/SuggestedFoods.tsx`):
+   - Visually distinct card area: light green-tinted background + subtle green border
+   - Compact items: left-aligned food name + quantity, no calories, + button on right
+   - Truncated to max 3 items; "N more" link with chevron expands to show all
+   - "Hide" text link next to "Suggested" label to dismiss per meal (session-scoped)
+   - Positioned at bottom of each meal section (after logged food cards)
+
+3. **Dashboard changes** (`src/app/page.tsx`):
+   - All 4 meal sections only shown when they have content (logged food or suggestions)
+   - Empty meals hidden entirely (no "No items yet" placeholder)
+   - Suggestions shown for today and yesterday only (not older dates)
+   - Tap + on suggestion → inserts to DB immediately, shows toast, suggestion disappears
+   - Pull-to-refresh and date change both refresh suggestions
+
+4. **AddFoodSheet cleaned up**:
+   - Removed frequent foods section entirely (grid, toggle logic, FrequentFood type)
+   - Removed `frequentFoods` prop, `getMealType`, `toper100g`, `selectedFrequentNames`
+   - Sheet is now text/voice input only with logged foods tray
+
+5. **Dummy test data** currently hardcoded in page.tsx for visual testing:
+   - Breakfast: Omelette, Toast, Black Coffee (3 items — no truncation)
+   - Lunch: Dal Tadka, Jeera Rice, Paneer Butter Masala, Roti, Raita (5 items — tests truncation + expand)
+   - **TODO: Remove dummy data before final ship**
+
+### Swipe-to-delete fix
+- **Problem**: vertical scrolling accidentally triggered horizontal swipe to reveal delete button
+- **Fix**: direction locking in `FoodCard.tsx` — first 12px of drag movement decides direction. Horizontal only wins if X movement > 1.5× Y movement. Vertical-locked gestures suppress swipe entirely.
+
+### Auth loading fix
+- **Problem**: dashboard stuck on loading spinner if Supabase unreachable
+- **Fix**: 5-second timeout + catch handler in `AuthProvider.tsx` — stops loading and redirects to auth page instead of spinning forever
+
+### Files changed
+- `src/components/SuggestedFoods.tsx` — new component
+- `src/lib/supabase-data.ts` — replaced `fetchFrequentFoods` with `fetchSuggestions` + `SuggestedFood` type
+- `src/app/page.tsx` — suggested widget integration, dummy test data, meal section rendering
+- `src/components/AddFoodSheet.tsx` — removed frequent foods section
+- `src/components/FoodCard.tsx` — direction locking for swipe
+- `src/components/AuthProvider.tsx` — loading timeout
+
+### Next steps
+- Remove dummy suggestion data from page.tsx
+- Remaining v1 items: undo toast after delete, warning for erroneous quantities
+- See `enhancements.md` for full list

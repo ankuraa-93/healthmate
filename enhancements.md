@@ -11,10 +11,9 @@
 - Color coding improvements (replace light blue with lightened green, orange based on calorie %) — done
 - Forgot password flow — done
 - Drag-and-drop food cards between meal groups on dashboard — moved to later
-- Frequently logged logic — can we move it to dashboard page instead? Review logic: daily, weekly and biweekly frequency.
+- Frequently logged logic — done (renamed to "Suggested", moved to dashboard with pattern-based logic: daily/weekly/biweekly). Dummy test data still in page.tsx — remove before final ship.
 
 ### Add Food
-- Larger, more photo-focused frequent food cards (explore different layouts)
 - Option to undo in the toast after food is deleted (since there is no confirmation screen after delete)
 - Warning for erroneous quantities
 
