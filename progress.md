@@ -480,6 +480,22 @@ Moved food suggestions from AddFoodSheet to the dashboard, with pattern-based lo
 - `src/components/FoodCard.tsx` — direction locking for swipe
 - `src/components/AuthProvider.tsx` — loading timeout
 
+## Session: 2026-05-30 — Log Food sheet UX polish
+
+### Changes
+1. **Done button** — replaced green pill with checkmark → iOS-style plain text "Done" link (17px, accent color, no background)
+2. **Removed "Logged foods" title** — unnecessary label above tray items
+3. **Green tick after food names** — each logged food in the tray shows a small green check after its name, confirming it's been saved
+4. **Save feedback** — when user edits quantity (pills or typing), the green check briefly becomes a spinning loader then returns to check (300ms minimum display). Communicates auto-save without a save button.
+5. **Chevron direction** — changed from right-pointing (ChevronRight, rotates to 90°) to down-pointing (ChevronDown, rotates to 180°/up). Gives correct spatial cue about where the expanded area will appear.
+6. **Stepped loading messages** — replaced static "Identifying food..." with progressive states:
+   - "Identifying food..." (during Gemini parse + match)
+   - "Logging X foods..." (during DB writes, shown for at least 400ms)
+   - Voice flow: "Transcribing..." (during Groq Whisper)
+
+### Files changed
+- `src/components/AddFoodSheet.tsx` — all changes above (loadingMessage state replaces boolean, savingIndices set, ChevronDown, delay helper)
+
 ### Next steps
 - Remove dummy suggestion data from page.tsx
 - Remaining v1 items: undo toast after delete, warning for erroneous quantities

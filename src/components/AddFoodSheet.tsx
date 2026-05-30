@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mic, ArrowUp, X, Check, ChevronRight, Trash2, Loader2 } from 'lucide-react';
+import { Mic, ArrowUp, X, Check, ChevronDown, Trash2, Loader2 } from 'lucide-react';
 import { insertFoodLog, deleteFoodLog, updateFoodLog } from '@/lib/supabase-data';
 
 // --- Types ---
@@ -57,9 +57,10 @@ function getAudioMimeType(): string {
 function AddFoodSheetInner({ onClose, userId, logDate, onToast }: Omit<AddFoodSheetProps, 'open'>) {
   const [input, setInput] = useState('');
   const [trayItems, setTrayItems] = useState<TrayItem[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const [savingIndices, setSavingIndices] = useState<Set<number>>(new Set());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -93,11 +94,13 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast }: Omit<AddFoodSh
 
   // --- Text submit ---
 
+  const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
+
   const handleTextSubmit = async () => {
-    if (!hasContent || loading) return;
+    if (!hasContent || loadingMessage) return;
     const text = input.trim();
     setInput('');
-    setLoading(true);
+    setLoadingMessage('Identifying food...');
 
     try {
       const parseRes = await fetch('/api/parse-food', {
@@ -116,17 +119,21 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast }: Omit<AddFoodSh
       if (!matchRes.ok) throw new Error((await matchRes.json().catch(() => ({}))).error || 'Match failed');
       const matched = await matchRes.json();
 
+      const itemCount = matched.items.length;
+      setLoadingMessage(`Logging ${itemCount} food${itemCount === 1 ? '' : 's'}...`);
+
       const results = await Promise.all(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         matched.items.map((item: any) => logItemToDb(item))
       );
       const newItems = results.filter(Boolean) as TrayItem[];
+      await delay(400);
       setTrayItems(prev => [...prev, ...newItems]);
     } catch (error) {
       console.error('Text parse error:', error);
       onToast?.('Failed to parse food — try again');
     } finally {
-      setLoading(false);
+      setLoadingMessage(null);
     }
   };
 
@@ -169,14 +176,14 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast }: Omit<AddFoodSh
 
   const stopRecording = () => {
     if (mediaRecorderRef.current?.state === 'recording') {
-      setLoading(true);
+      setLoadingMessage('Transcribing...');
       mediaRecorderRef.current.stop();
     }
     setRecording(false);
   };
 
   const processAudio = async (blob: Blob) => {
-    setLoading(true);
+    setLoadingMessage('Transcribing...');
     try {
       const formData = new FormData();
       formData.append('audio', blob);
@@ -191,12 +198,12 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast }: Omit<AddFoodSh
       }
 
       setInput(transcript);
-      setLoading(false);
+      setLoadingMessage(null);
     } catch (error) {
       console.error('Transcription error:', error);
       const msg = error instanceof Error ? error.message : 'Voice input failed';
       onToast?.(msg);
-      setLoading(false);
+      setLoadingMessage(null);
     }
   };
 
@@ -210,6 +217,7 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast }: Omit<AddFoodSh
     const qty = Math.max(1, newQty);
     const item = trayItems[index];
     setTrayItems(prev => prev.map((it, i) => i === index ? { ...it, quantity_g: qty } : it));
+    setSavingIndices(prev => new Set(prev).add(index));
 
     const ratio = qty / 100;
     await updateFoodLog(item.id, {
@@ -220,6 +228,8 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast }: Omit<AddFoodSh
       fat: Math.round(item.fat_per_100g * ratio),
       fibre: Math.round(item.fibre_per_100g * ratio),
     });
+    await delay(300);
+    setSavingIndices(prev => { const next = new Set(prev); next.delete(index); return next; });
   };
 
   const handleRemoveItem = async (index: number) => {
@@ -276,13 +286,12 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast }: Omit<AddFoodSh
           <div className="flex items-center gap-2">
             {trayItems.length > 0 ? (
               <motion.button
-                className="h-8 px-4 rounded-full bg-accent border-none text-[14px] font-medium text-white cursor-pointer flex items-center gap-1.5"
+                className="border-none bg-transparent text-[17px] font-medium text-accent cursor-pointer p-0"
                 onClick={onClose}
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
                 whileTap={{ scale: 0.95 }}
               >
-                <Check size={16} />
                 Done
               </motion.button>
             ) : (
@@ -309,9 +318,6 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast }: Omit<AddFoodSh
                 exit={{ opacity: 0, height: 0 }}
                 className="mb-5"
               >
-                <div className="text-[13px] font-medium text-text-secondary uppercase tracking-wide mb-3">
-                  Logged foods
-                </div>
 
                 {(() => {
                   const mealOrder = ['breakfast', 'lunch', 'snack', 'dinner'] as const;
@@ -356,7 +362,14 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast }: Omit<AddFoodSh
                                   {(item.matched_library_name || item.name).slice(0, 1).toUpperCase()}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <div className="text-[14px] font-medium leading-snug">{item.matched_library_name || item.name}</div>
+                                  <div className="text-[14px] font-medium leading-snug flex items-center gap-1.5">
+                                    {item.matched_library_name || item.name}
+                                    {savingIndices.has(idx) ? (
+                                      <Loader2 size={14} className="text-accent animate-spin flex-shrink-0" />
+                                    ) : (
+                                      <Check size={14} className="text-accent flex-shrink-0" />
+                                    )}
+                                  </div>
                                   <div className="flex items-baseline justify-between gap-2 mt-px text-[13px] text-text-secondary">
                                     <span className="whitespace-nowrap">
                                       {item.quantity_g}{unitLabel} &middot; {nutrition.calories} cal
@@ -368,10 +381,10 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast }: Omit<AddFoodSh
                                 </div>
                                 <motion.div
                                   className="flex-shrink-0 text-text-tertiary"
-                                  animate={{ rotate: isExpanded ? 90 : 0 }}
+                                  animate={{ rotate: isExpanded ? 180 : 0 }}
                                   transition={{ duration: 0.25 }}
                                 >
-                                  <ChevronRight size={14} />
+                                  <ChevronDown size={14} />
                                 </motion.div>
                               </div>
 
@@ -468,10 +481,10 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast }: Omit<AddFoodSh
         {/* ── Fixed bottom input bar ── */}
         <div className="flex-shrink-0 p-4 pb-[max(12px,env(safe-area-inset-bottom))] border-t border-bg-tertiary/50 bg-bg-primary">
           <div className="bg-bg-secondary rounded-[20px] px-4 pt-3 pb-2.5 focus-within:ring-2 focus-within:ring-accent/25 transition-shadow">
-            {loading ? (
+            {loadingMessage ? (
               <div className="flex items-center gap-2.5 min-h-[56px]">
                 <Loader2 size={18} className="text-accent animate-spin flex-shrink-0" />
-                <span className="text-[15px] text-text-secondary">Identifying food...</span>
+                <span className="text-[15px] text-text-secondary">{loadingMessage}</span>
               </div>
             ) : (
               <textarea
@@ -497,7 +510,7 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast }: Omit<AddFoodSh
                     recording ? 'bg-destructive text-white' : 'bg-bg-tertiary text-text-secondary'
                   }`}
                   onClick={toggleRecording}
-                  disabled={loading}
+                  disabled={!!loadingMessage}
                   whileTap={{ scale: 0.9 }}
                   animate={recording ? { scale: [1, 1.1, 1] } : {}}
                   transition={recording ? { duration: 1, repeat: Infinity } : {}}
@@ -513,7 +526,7 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast }: Omit<AddFoodSh
               ) : <div />}
               <motion.button
                 className="w-9 h-9 rounded-full bg-accent border-none flex items-center justify-center text-white cursor-pointer flex-shrink-0 disabled:opacity-35 disabled:cursor-default"
-                disabled={!hasContent || recording || loading}
+                disabled={!hasContent || recording || !!loadingMessage}
                 onClick={handleTextSubmit}
                 whileTap={hasContent ? { scale: 0.85 } : {}}
               >

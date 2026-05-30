@@ -1,25 +1,34 @@
 # HealthMate — Future Enhancements
 
+
+
+Instructions:
+
+- Don't change any existing bullet text. You can add. 
+- You can rearrange bullets across section if priorities change.
+- When a bullet is completed, strikethrough the bullet and add "- Completed" text next to it, with a green tick emoji.
+
 ## v1 Goals
 
 > Voice + text parsing should work flawlessly. Auto food addition to food library should work flawlessly. The app should be good looking and inviting to use. Basic UI/UX functions should be available.
 
 ### UX
 
-- ~~Swipe-to-delete on food cards (alternative to tap > edit > delete)~~ ✅
-- ~~Pull-to-refresh on dashboard~~ ✅
-- ~~Remove comma from calorie counter~~ ✅
-- ~~Change font, font size and boldness (check if Avenir will look good)~~ ✅
-- ~~Color coding improvements (replace light blue with lightened green, orange based on calorie %)~~ ✅
-- ~~Forgot password flow~~ ✅
-- ~~Weekly date strip with mini calorie rings — replaced date picker with Mon-Sun strip showing daily calorie progress, swipe to change weeks, tap/swipe to change days~~ ✅
-- ~~Grouped meal cards — foods in the same meal grouped into one card with meal label inside, margin-to-margin separators between items, edge-to-edge separator before suggestions~~ ✅
-- ~~Food card layout — calories next to quantity, macros right-aligned on same line, less busy~~ ✅
-- ~~Suggested foods embedded in meal cards — suggestions appear inside the grouped card with edge-to-edge separator~~ ✅
-- ~~Subtle shadows on weekly strip header and bottom nav~~ ✅
-- ~~Consistent styling between dashboard and Log Food sheet — grouped cards, layout, colors match~~ ✅
+- ~~Swipe-to-delete on food cards (alternative to tap > edit > delete)~~ - Completed ✅
+- ~~Pull-to-refresh on dashboard~~ - Completed ✅
+- ~~Remove comma from calorie counter~~ - Completed ✅
+- ~~Change font, font size and boldness (check if Avenir will look good)~~ - Completed ✅
+- ~~Color coding improvements (replace light blue with lightened green, orange based on calorie %)~~ - Completed ✅
+- ~~Forgot password flow~~ - Completed ✅
+- ~~Weekly date strip with mini calorie rings — replaced date picker with Mon-Sun strip showing daily calorie progress, swipe to change weeks, tap/swipe to change days~~ - Completed ✅
+- ~~Grouped meal cards — foods in the same meal grouped into one card with meal label inside, margin-to-margin separators between items, edge-to-edge separator before suggestions~~ - Completed ✅
+- ~~Food card layout — calories next to quantity, macros right-aligned on same line, less busy~~ - Completed ✅
+- ~~Suggested foods embedded in meal cards — suggestions appear inside the grouped card with edge-to-edge separator~~ - Completed ✅
+- ~~Subtle shadows on weekly strip header and bottom nav~~ - Completed ✅
+- ~~Consistent styling between dashboard and Log Food sheet — grouped cards, layout, colors match~~ - Completed ✅
+- ~~Log Food sheet UX polish — iOS-style "Done" text button, green tick after food names (flashes to spinner on save), chevron down/up for expand/collapse, stepped loading messages ("Identifying food..." → "Logging X foods...")~~ - Completed ✅
 - Frequently logged logic — done (renamed to "Suggested", moved to dashboard with pattern-based logic: daily/weekly/biweekly). Dummy test data still in page.tsx — remove before final ship.
-- If user hides suggested tray, don't show it again when page refreshes.
+- If user hides suggested tray, don't show it again for the same day + meal when page refreshes.
 
 ### Add Food
 
