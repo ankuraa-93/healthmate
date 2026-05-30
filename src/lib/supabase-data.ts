@@ -97,6 +97,28 @@ export async function deleteFoodLog(id: string): Promise<boolean> {
   return true;
 }
 
+// --- Weekly Calories ---
+
+export async function fetchWeeklyCalories(userId: string, dates: string[]): Promise<Record<string, number>> {
+  const { data, error } = await supabase
+    .from('food_log')
+    .select('logged_date, calories')
+    .eq('user_id', userId)
+    .eq('status', 'confirmed')
+    .in('logged_date', dates);
+
+  if (error) {
+    console.error('fetchWeeklyCalories error:', error);
+    return {};
+  }
+
+  const totals: Record<string, number> = {};
+  for (const row of data ?? []) {
+    totals[row.logged_date] = (totals[row.logged_date] ?? 0) + (row.calories ?? 0);
+  }
+  return totals;
+}
+
 // --- Food Library ---
 
 export async function fetchFoodLibraryItem(id: string): Promise<FoodLibraryItem | null> {

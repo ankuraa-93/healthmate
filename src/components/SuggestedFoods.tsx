@@ -11,9 +11,10 @@ interface SuggestedFoodsProps {
   items: SuggestedFood[];
   onAdd: (item: SuggestedFood) => void;
   onDismiss: () => void;
+  embedded?: boolean;
 }
 
-export default function SuggestedFoods({ items, onAdd, onDismiss }: SuggestedFoodsProps) {
+export default function SuggestedFoods({ items, onAdd, onDismiss, embedded }: SuggestedFoodsProps) {
   const [expanded, setExpanded] = useState(false);
   if (items.length === 0) return null;
 
@@ -22,7 +23,10 @@ export default function SuggestedFoods({ items, onAdd, onDismiss }: SuggestedFoo
 
   return (
     <motion.div
-      className="rounded-xl bg-accent/[0.04] border border-accent/10 p-2.5 mb-2"
+      className={embedded
+        ? "bg-accent/[0.04] p-2.5"
+        : "rounded-xl bg-accent/[0.04] border border-accent/10 p-2.5 mb-2"
+      }
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, height: 0, marginBottom: 0, padding: 0, overflow: 'hidden', transition: { duration: 0.2 } }}

@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect, TouchEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Calendar, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
 import CalorieRing from '@/components/CalorieRing';
 import MacroGrid from '@/components/MacroGrid';
@@ -11,8 +11,9 @@ import FAB from '@/components/FAB';
 import AddFoodSheet from '@/components/AddFoodSheet';
 import EditFoodSheet from '@/components/EditFoodSheet';
 import Toast from '@/components/Toast';
+import WeekStrip from '@/components/WeekStrip';
 import { useAuth } from '@/components/AuthProvider';
-import { fetchFoodLogs, fetchProfile, updateFoodLog, deleteFoodLog, insertFoodLog, fetchSuggestions, SuggestedFood } from '@/lib/supabase-data';
+import { fetchFoodLogs, fetchProfile, updateFoodLog, deleteFoodLog, insertFoodLog, fetchSuggestions, fetchWeeklyCalories, SuggestedFood } from '@/lib/supabase-data';
 import SuggestedFoods from '@/components/SuggestedFoods';
 import { FoodLogEntry, Profile } from '@/lib/types';
 
@@ -21,6 +22,19 @@ function formatDate(date: Date): string {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+function getWeekDates(date: Date): string[] {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay();
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - ((day + 6) % 7));
+  return Array.from({ length: 7 }, (_, i) => {
+    const wd = new Date(monday);
+    wd.setDate(monday.getDate() + i);
+    return formatDate(wd);
+  });
 }
 
 const defaultProfile: Profile = {
@@ -49,41 +63,66 @@ export default function DashboardPage() {
     action?: { label: string; onPress: () => void };
   }>({ visible: false, message: '' });
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(null);
-  const datePickerRef = useRef<HTMLInputElement>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [weeklyCalories, setWeeklyCalories] = useState<Record<string, number>>({});
   const [refreshing, setRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const touchStartY = useRef(0);
+  const touchStartX = useRef(0);
+  const swipeDirection = useRef<'x' | 'y' | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const handleTouchStart = (e: TouchEvent) => {
-    if (scrollRef.current && scrollRef.current.scrollTop === 0) {
-      touchStartY.current = e.touches[0].clientY;
-    }
+    touchStartY.current = e.touches[0].clientY;
+    touchStartX.current = e.touches[0].clientX;
+    swipeDirection.current = null;
   };
 
   const handleTouchMove = (e: TouchEvent) => {
-    if (!scrollRef.current || scrollRef.current.scrollTop > 0) return;
-    const delta = e.touches[0].clientY - touchStartY.current;
-    if (delta > 0) {
-      setPullDistance(Math.min(delta * 0.4, 80));
+    const deltaX = e.touches[0].clientX - touchStartX.current;
+    const deltaY = e.touches[0].clientY - touchStartY.current;
+
+    if (!swipeDirection.current && (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10)) {
+      swipeDirection.current = Math.abs(deltaX) > Math.abs(deltaY) ? 'x' : 'y';
+    }
+
+    if (swipeDirection.current === 'y') {
+      if (!scrollRef.current || scrollRef.current.scrollTop > 0) return;
+      if (deltaY > 0) {
+        setPullDistance(Math.min(deltaY * 0.4, 80));
+      }
     }
   };
 
-  const handleTouchEnd = async () => {
-    if (pullDistance > 50 && !refreshing) {
-      setRefreshing(true);
-      setPullDistance(50);
-      if (user) {
-        await Promise.all([
-          fetchFoodLogs(user.id, formatDate(selectedDate)).then(setLogs),
-          fetchProfile(user.id).then(p => { if (p) setProfile(p); }),
-          fetchSuggestions(user.id, selectedDate).then(setSuggestions),
-        ]);
+  const handleTouchEnd = async (e: TouchEvent) => {
+    if (swipeDirection.current === 'x') {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-food-card]')) {
+        const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+        if (Math.abs(deltaX) > 60) {
+          setSelectedDate(prev => {
+            const next = new Date(prev);
+            next.setDate(next.getDate() + (deltaX < 0 ? 1 : -1));
+            return next;
+          });
+        }
       }
-      setRefreshing(false);
+    } else {
+      if (pullDistance > 50 && !refreshing) {
+        setRefreshing(true);
+        setPullDistance(50);
+        if (user) {
+          await Promise.all([
+            fetchFoodLogs(user.id, formatDate(selectedDate)).then(setLogs),
+            fetchProfile(user.id).then(p => { if (p) setProfile(p); }),
+            fetchSuggestions(user.id, selectedDate).then(setSuggestions),
+            fetchWeeklyCalories(user.id, getWeekDates(selectedDate)).then(setWeeklyCalories),
+          ]);
+        }
+        setRefreshing(false);
+      }
+      setPullDistance(0);
     }
-    setPullDistance(0);
   };
 
   useEffect(() => {
@@ -95,12 +134,14 @@ export default function DashboardPage() {
     if (!user) return;
     fetchFoodLogs(user.id, formatDate(selectedDate)).then(setLogs);
     fetchSuggestions(user.id, selectedDate).then(setSuggestions);
+    fetchWeeklyCalories(user.id, getWeekDates(selectedDate)).then(setWeeklyCalories);
   }, [user, selectedDate]);
 
   const refreshLogs = useCallback(() => {
     if (!user) return;
     fetchFoodLogs(user.id, formatDate(selectedDate)).then(setLogs);
     fetchSuggestions(user.id, selectedDate).then(setSuggestions);
+    fetchWeeklyCalories(user.id, getWeekDates(selectedDate)).then(setWeeklyCalories);
   }, [user, selectedDate]);
 
   const totals = logs.reduce(
@@ -116,6 +157,10 @@ export default function DashboardPage() {
     },
     { calories: 0, protein: 0, carbs: 0, fat: 0, fibre: 0 }
   );
+
+  // Merge live totals for selected day into weekly data
+  const mergedWeeklyCalories = { ...weeklyCalories };
+  mergedWeeklyCalories[formatDate(selectedDate)] = totals.calories;
 
   const showToast = useCallback((message: string, duration = 2000, action?: { label: string; onPress: () => void }) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -215,40 +260,17 @@ export default function DashboardPage() {
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
   const showSuggestions = isToday || selectedDate.toDateString() === yesterday.toDateString();
-  const dateStr = isToday
-    ? `Today, ${selectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}`
-    : selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric' });
-
-  const handleDatePick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.value) return;
-    const d = new Date(e.target.value + 'T12:00:00');
-    setSelectedDate(d);
-  };
 
   return (
     <div className="absolute inset-0 flex flex-col">
-      {/* Fixed date header */}
-      <div className="flex-shrink-0 pt-[max(env(safe-area-inset-top),12px)] pb-2 bg-bg-primary z-10">
-        <motion.div
-          className="flex justify-center items-center"
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-        >
-          <button
-            className="relative inline-flex items-center gap-1.5 bg-bg-secondary rounded-full px-3.5 py-2 cursor-pointer border-none"
-            onClick={() => datePickerRef.current?.showPicker()}
-          >
-            <Calendar size={16} className="text-text-secondary" />
-            <span className="text-[17px] font-medium text-text-primary">{dateStr}</span>
-            <input
-              ref={datePickerRef}
-              type="date"
-              className="absolute opacity-0 w-0 h-0 pointer-events-none"
-              onChange={handleDatePick}
-            />
-          </button>
-        </motion.div>
+      {/* Weekly strip header */}
+      <div className="flex-shrink-0 pt-[max(env(safe-area-inset-top),12px)] pb-1 bg-bg-primary z-10 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+        <WeekStrip
+          selectedDate={selectedDate}
+          onSelectDate={setSelectedDate}
+          weeklyCalories={mergedWeeklyCalories}
+          calorieTarget={profile.daily_calorie_goal}
+        />
       </div>
 
       <div
@@ -275,7 +297,7 @@ export default function DashboardPage() {
 
         {/* Summary: ring + macros */}
         <motion.div
-          className="flex items-center gap-5 mb-6"
+          className="flex items-center gap-5 mb-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.1 }}
@@ -294,15 +316,8 @@ export default function DashboardPage() {
           />
         </motion.div>
 
-        {/* Meals */}
-        <motion.div
-          className="flex justify-between items-center mb-3"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
-        >
-          <span className="text-xl font-medium">Meals</span>
-        </motion.div>
+        {/* Separator: summary / meals */}
+        <div className="h-px bg-bg-tertiary mb-4" />
 
         {(() => {
           const mealOrder = ['breakfast', 'lunch', 'snack', 'dinner'] as const;
@@ -338,34 +353,74 @@ export default function DashboardPage() {
 
             return (
               <div key={type} className="mb-3">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="text-[12px] font-medium text-text-tertiary uppercase tracking-wide">{mealLabels[type]}</span>
-                  <div className="flex-1 h-px bg-bg-tertiary" />
-                </div>
-                <AnimatePresence>
-                {entries.map((entry) => {
-                  const idx = cardIndex++;
-                  return (
-                    <FoodCard
-                      key={entry.id}
-                      entry={entry}
-                      index={idx}
-                      onClick={entry.status === 'confirmed' ? () => setEditingEntry(entry) : undefined}
-                      onDelete={entry.status === 'confirmed' ? handleSwipeDelete : undefined}
-                    />
-                  );
-                })}
-                </AnimatePresence>
-                <AnimatePresence>
-                {mealSuggestions.length > 0 && (
-                  <SuggestedFoods
-                    key={`suggest-${type}`}
-                    items={mealSuggestions}
-                    onAdd={handleSuggestionAdd}
-                    onDismiss={() => setDismissedMeals(prev => new Set(prev).add(type))}
-                  />
+                {/* Grouped meal card */}
+                {entries.length > 0 && (
+                  <div
+                    className="rounded-xl overflow-hidden mb-2"
+                    style={{ backgroundColor: 'var(--color-card-bg)', '--meal-bg': 'var(--color-card-bg)' } as React.CSSProperties}
+                  >
+                    <div className="px-3.5 pt-2.5 pb-1">
+                      <span className="text-[12px] font-medium text-text-tertiary uppercase tracking-wide">
+                        {mealLabels[type]}
+                      </span>
+                    </div>
+                    <AnimatePresence>
+                      {entries.map((entry, i) => {
+                        const idx = cardIndex++;
+                        return (
+                          <FoodCard
+                            key={entry.id}
+                            entry={entry}
+                            index={idx}
+                            showSeparator={i > 0}
+                            onClick={entry.status === 'confirmed' ? () => setEditingEntry(entry) : undefined}
+                            onDelete={entry.status === 'confirmed' ? handleSwipeDelete : undefined}
+                          />
+                        );
+                      })}
+                    </AnimatePresence>
+                    <AnimatePresence>
+                      {mealSuggestions.length > 0 && (
+                        <motion.div
+                          key={`suggest-${type}`}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0, height: 0, overflow: 'hidden', transition: { duration: 0.2 } }}
+                        >
+                          <div className="h-px bg-bg-tertiary" />
+                          <SuggestedFoods
+                            items={mealSuggestions}
+                            onAdd={handleSuggestionAdd}
+                            onDismiss={() => setDismissedMeals(prev => new Set(prev).add(type))}
+                            embedded
+                          />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 )}
-                </AnimatePresence>
+
+                {/* Suggestions-only card when no logged entries */}
+                {entries.length === 0 && mealSuggestions.length > 0 && (
+                  <div
+                    className="rounded-xl overflow-hidden mb-2"
+                    style={{ backgroundColor: 'var(--color-card-bg)' }}
+                  >
+                    <div className="px-3.5 pt-2.5 pb-1">
+                      <span className="text-[12px] font-medium text-text-tertiary uppercase tracking-wide">{mealLabels[type]}</span>
+                    </div>
+                    <div className="h-px bg-bg-tertiary" />
+                    <AnimatePresence>
+                      <SuggestedFoods
+                        key={`suggest-${type}`}
+                        items={mealSuggestions}
+                        onAdd={handleSuggestionAdd}
+                        onDismiss={() => setDismissedMeals(prev => new Set(prev).add(type))}
+                        embedded
+                      />
+                    </AnimatePresence>
+                  </div>
+                )}
               </div>
             );
           });

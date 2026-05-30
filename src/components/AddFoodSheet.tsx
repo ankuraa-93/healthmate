@@ -325,41 +325,46 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast }: Omit<AddFoodSh
                     .filter(g => g.entries.length > 0);
 
                   return grouped.map(group => (
-                    <div key={group.type} className="mb-2.5">
-                      <div className="flex items-center gap-2 mb-1.5">
+                    <div
+                      key={group.type}
+                      className="rounded-xl overflow-hidden mb-2.5"
+                      style={{ backgroundColor: 'var(--color-card-bg)' }}
+                    >
+                      <div className="px-3.5 pt-2.5 pb-1">
                         <span className="text-[12px] font-medium text-text-tertiary uppercase tracking-wide">{group.label}</span>
-                        <div className="flex-1 h-px bg-bg-tertiary" />
                       </div>
-                      <div className="flex flex-col gap-2">
-                        {group.entries.map(({ item, idx }, cardIndex) => {
-                          const nutrition = scaleNutrition(item);
-                          const isExpanded = expandedIndex === idx;
-                          const unitLabel = item.unit === 'ml' ? 'ml' : 'g';
+                      {group.entries.map(({ item, idx }, cardIndex) => {
+                        const nutrition = scaleNutrition(item);
+                        const isExpanded = expandedIndex === idx;
+                        const unitLabel = item.unit === 'ml' ? 'ml' : 'g';
 
-                          return (
-                            <motion.div
-                              key={item.id}
-                              className="bg-bg-secondary rounded-xl p-3 cursor-pointer"
-                              initial={{ opacity: 0, y: 12 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, x: -20, scale: 0.95 }}
-                              transition={{ delay: cardIndex * 0.06 }}
+                        return (
+                          <motion.div
+                            key={item.id}
+                            initial={{ opacity: 0, y: 12 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, x: -20, scale: 0.95 }}
+                            transition={{ delay: cardIndex * 0.06 }}
+                          >
+                            {cardIndex > 0 && <div className="h-px bg-bg-tertiary mx-3.5" />}
+                            <div
+                              className="p-3 px-3.5 cursor-pointer"
                               onClick={() => handleToggleExpand(idx)}
-                              layout
                             >
                               <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-[10px] bg-bg-tertiary flex items-center justify-center text-sm font-medium flex-shrink-0">
+                                <div className="w-11 h-11 rounded-[10px] bg-bg-tertiary flex items-center justify-center text-lg flex-shrink-0">
                                   {(item.matched_library_name || item.name).slice(0, 1).toUpperCase()}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <div className="text-[15px] font-medium leading-snug">{item.matched_library_name || item.name}</div>
-                                  <div className="text-[12px] text-text-secondary mt-0.5">
-                                    {item.quantity_g}{unitLabel} · P:{nutrition.protein} C:{nutrition.carbs} F:{nutrition.fat} Fi:{nutrition.fibre}
+                                  <div className="text-[14px] font-medium leading-snug">{item.matched_library_name || item.name}</div>
+                                  <div className="flex items-baseline justify-between gap-2 mt-px text-[13px] text-text-secondary">
+                                    <span className="whitespace-nowrap">
+                                      {item.quantity_g}{unitLabel} &middot; {nutrition.calories} cal
+                                    </span>
+                                    <span className="whitespace-nowrap">
+                                      P:{nutrition.protein} C:{nutrition.carbs} F:{nutrition.fat} Fi:{nutrition.fibre}
+                                    </span>
                                   </div>
-                                </div>
-                                <div className="flex-shrink-0 text-right">
-                                  <div className="text-[16px] font-semibold">{nutrition.calories}</div>
-                                  <div className="text-[11px] text-text-secondary">cal</div>
                                 </div>
                                 <motion.div
                                   className="flex-shrink-0 text-text-tertiary"
@@ -417,10 +422,10 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast }: Omit<AddFoodSh
                                   </motion.div>
                                 )}
                               </AnimatePresence>
-                            </motion.div>
-                          );
-                        })}
-                      </div>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
                     </div>
                   ));
                 })()}

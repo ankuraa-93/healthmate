@@ -14,7 +14,7 @@ export default function BottomNav() {
   const router = useRouter();
 
   return (
-    <nav className="flex-shrink-0 pb-[max(8px,env(safe-area-inset-bottom))] bg-bg-primary border-t border-bg-tertiary/50 flex items-start justify-around pt-1.5 z-10">
+    <nav className="flex-shrink-0 pb-[max(8px,env(safe-area-inset-bottom))] bg-bg-primary flex items-start justify-around pt-1.5 z-10 shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
       {tabs.map((tab) => {
         const isActive = pathname === tab.path;
         return (

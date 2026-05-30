@@ -1,28 +1,39 @@
 # HealthMate — Future Enhancements
 
 ## v1 Goals
+
 > Voice + text parsing should work flawlessly. Auto food addition to food library should work flawlessly. The app should be good looking and inviting to use. Basic UI/UX functions should be available.
 
 ### UX
-- Swipe-to-delete on food cards (alternative to tap > edit > delete) — done
-- Pull-to-refresh on dashboard — done
-- Remove comma from calorie counter — done
-- Change font, font size and boldness (check if Avenir will look good) — done
-- Color coding improvements (replace light blue with lightened green, orange based on calorie %) — done
-- Forgot password flow — done
-- Drag-and-drop food cards between meal groups on dashboard — moved to later
+
+- ~~Swipe-to-delete on food cards (alternative to tap > edit > delete)~~ ✅
+- ~~Pull-to-refresh on dashboard~~ ✅
+- ~~Remove comma from calorie counter~~ ✅
+- ~~Change font, font size and boldness (check if Avenir will look good)~~ ✅
+- ~~Color coding improvements (replace light blue with lightened green, orange based on calorie %)~~ ✅
+- ~~Forgot password flow~~ ✅
+- ~~Weekly date strip with mini calorie rings — replaced date picker with Mon-Sun strip showing daily calorie progress, swipe to change weeks, tap/swipe to change days~~ ✅
+- ~~Grouped meal cards — foods in the same meal grouped into one card with meal label inside, margin-to-margin separators between items, edge-to-edge separator before suggestions~~ ✅
+- ~~Food card layout — calories next to quantity, macros right-aligned on same line, less busy~~ ✅
+- ~~Suggested foods embedded in meal cards — suggestions appear inside the grouped card with edge-to-edge separator~~ ✅
+- ~~Subtle shadows on weekly strip header and bottom nav~~ ✅
+- ~~Consistent styling between dashboard and Log Food sheet — grouped cards, layout, colors match~~ ✅
 - Frequently logged logic — done (renamed to "Suggested", moved to dashboard with pattern-based logic: daily/weekly/biweekly). Dummy test data still in page.tsx — remove before final ship.
+- If user hides suggested tray, don't show it again when page refreshes.
 
 ### Add Food
+
 - Option to undo in the toast after food is deleted (since there is no confirmation screen after delete)
 - Warning for erroneous quantities
 
 ### Nutrition & Data
+
 - Food images — add `image_url` column to `food_library` table. Source options: (1) Gemini web search can return image URLs alongside nutrition data, (2) Unsplash/Pexels API for generic foods, (3) user-uploaded photos. Display on dashboard FoodCards + ConfirmFoodSheet + frequently logged section (currently using initial-letter avatars). Consider storing as Supabase Storage URLs for permanence (external URLs can rot). Will need schema migration + UI updates across FoodCard, ConfirmFoodSheet, AddFoodSheet frequent foods.
 
 ---
 
 ## v2 Goals
+
 > "Did you mean?" for confusing inputs. Flawless frequently logged food logic.
 
 - "Did you mean?" disambiguation flow — when Gemini encounters ambiguous terms (e.g., "eggs" could be scrambled, boiled, fried, omelette), show a disambiguation screen with options instead of defaulting. Needs new UI screen + Gemini prompt changes to flag ambiguous items.
@@ -32,19 +43,20 @@
 ---
 
 ## v3 Goals
+
 > Weekly, monthly summaries — overview and guidance for current week/month.
 > Good to have UI/UX improvements
 
-- Weekly/monthly calorie and macro trends (charts)
+- Weekly/monthly calorie and macro trends (charts) — weekly calorie overview partially done via weekly strip mini rings; full charts still needed
 - History tab — revisit calendar view design (user didn't love v1 calendar)
 - High protein, high carb, high fat, high fibre tags instead of detailed values
 - Give cues to the user during on what macros to focus on
 - Loading states animations/visuals + other "cool" things
 
-
 ---
 
 ## Later
+
 - Drag-and-drop food cards between meal groups on dashboard
 - Streak tracking (days meeting goals)
 - Nutrition insights ("You're consistently low on fibre")
@@ -55,3 +67,4 @@
 - Onboarding flow for first-time users (set goals, explain natural language input)
 - Dark mode
 - Change grouping by food type on daily view (unhealthy snacks, high sugar, whole foods etc.)
+
