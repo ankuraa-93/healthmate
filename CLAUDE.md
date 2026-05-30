@@ -11,7 +11,7 @@ A calorie tracking web app where users log food via natural language text or voi
 - **Nutrition fallback**: USDA FoodData Central API (free) — when food not in library
 - **Icons**: Lucide Icons
 - **Font**: Inter (Google Fonts)
-- **Deployment**: GitHub + Vercel (frontend) + Supabase (backend)
+- **Deployment**: GitHub + Vercel (frontend, free tier) + Supabase (backend). Vercel auto-deploy from GitHub is not available on the free tier — deploy manually with `npx vercel --prod` after pushing to main.
 
 ## Core Features
 1. **Natural language food logging** — user types "2 eggs and toast" and the LLM extracts food items, quantities, calories, and macros (protein, carbs, fat, fibre)

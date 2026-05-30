@@ -343,6 +343,7 @@ export default function DashboardPage() {
           let cardIndex = 0;
           return mealOrder.map((type) => {
             const entries = logs.filter(l => l.meal_type === type);
+            const mealCalories = entries.reduce((sum, e) => sum + (e.status === 'confirmed' ? (e.calories ?? 0) : 0), 0);
             const loggedNames = new Set(entries.map(e => e.food_name));
             const mealSuggestions = showSuggestions && !dismissedMeals.has(type)
               ? allSuggestions.filter(s => s.meal_type === type && !loggedNames.has(s.food_name))
@@ -363,6 +364,11 @@ export default function DashboardPage() {
                       <span className="text-[12px] font-medium text-text-tertiary uppercase tracking-wide">
                         {mealLabels[type]}
                       </span>
+                      {mealCalories > 0 && (
+                        <span className="text-[12px] font-medium text-text-tertiary">
+                          {' '}&middot; {mealCalories} cal
+                        </span>
+                      )}
                     </div>
                     <AnimatePresence>
                       {entries.map((entry, i) => {
