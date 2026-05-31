@@ -54,7 +54,14 @@ export default function DashboardPage() {
   const [logs, setLogs] = useState<FoodLogEntry[]>([]);
   const [profile, setProfile] = useState<Profile>(defaultProfile);
   const [suggestions, setSuggestions] = useState<SuggestedFood[]>([]);
-  const [dismissedMeals, setDismissedMeals] = useState<Set<string>>(new Set());
+  const [dismissedMeals, setDismissedMeals] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set<string>();
+    try {
+      const stored = sessionStorage.getItem('hm-dismissed-suggestions');
+      if (stored) return new Set<string>(JSON.parse(stored));
+    } catch {}
+    return new Set<string>();
+  });
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<FoodLogEntry | null>(null);
   const [toast, setToast] = useState<{
@@ -63,6 +70,7 @@ export default function DashboardPage() {
     action?: { label: string; onPress: () => void };
   }>({ visible: false, message: '' });
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(null);
+  const deleteTimer = useRef<ReturnType<typeof setTimeout>>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [weeklyCalories, setWeeklyCalories] = useState<Record<string, number>>({});
   const [refreshing, setRefreshing] = useState(false);
@@ -124,6 +132,14 @@ export default function DashboardPage() {
       setPullDistance(0);
     }
   };
+
+  const dismissSuggestions = useCallback((key: string) => {
+    setDismissedMeals(prev => {
+      const next = new Set(prev).add(key);
+      try { sessionStorage.setItem('hm-dismissed-suggestions', JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -202,33 +218,47 @@ export default function DashboardPage() {
     setEditingEntry(null);
   }, [showToast]);
 
-  const handleEditDelete = useCallback(async (entryId: string) => {
+  const handleDeleteWithUndo = useCallback((entryId: string, closeEditSheet?: boolean) => {
     const deletedEntry = logs.find(log => log.id === entryId);
     if (!deletedEntry) return;
 
-    setEditingEntry(null);
+    if (closeEditSheet) setEditingEntry(null);
 
-    const success = await deleteFoodLog(entryId);
-    if (success) {
-      setLogs(prev => prev.filter(log => log.id !== entryId));
-      showToast(`${deletedEntry.food_name} deleted`, 3000);
-    } else {
-      showToast('Failed to delete');
-    }
+    if (deleteTimer.current) clearTimeout(deleteTimer.current);
+
+    setLogs(prev => prev.filter(log => log.id !== entryId));
+
+    const commitDelete = () => {
+      deleteFoodLog(entryId).then(success => {
+        if (!success) {
+          setLogs(prev => [...prev, deletedEntry]);
+          showToast('Failed to delete');
+        }
+      });
+    };
+
+    deleteTimer.current = setTimeout(commitDelete, 5000);
+
+    showToast(`${deletedEntry.food_name} deleted`, 5000, {
+      label: 'Undo',
+      onPress: () => {
+        if (deleteTimer.current) clearTimeout(deleteTimer.current);
+        setLogs(prev => [...prev, deletedEntry].sort((a, b) =>
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        ));
+        if (toastTimer.current) clearTimeout(toastTimer.current);
+        setToast({ visible: false, message: '' });
+      },
+    });
   }, [logs, showToast]);
 
-  const handleSwipeDelete = useCallback(async (entryId: string) => {
-    const deletedEntry = logs.find(log => log.id === entryId);
-    if (!deletedEntry) return;
+  const handleEditDelete = useCallback((entryId: string) => {
+    handleDeleteWithUndo(entryId, true);
+  }, [handleDeleteWithUndo]);
 
-    const success = await deleteFoodLog(entryId);
-    if (success) {
-      setLogs(prev => prev.filter(log => log.id !== entryId));
-      showToast(`${deletedEntry.food_name} deleted`, 3000);
-    } else {
-      showToast('Failed to delete');
-    }
-  }, [logs, showToast]);
+  const handleSwipeDelete = useCallback((entryId: string) => {
+    handleDeleteWithUndo(entryId);
+  }, [handleDeleteWithUndo]);
 
   const handleSuggestionAdd = useCallback(async (item: SuggestedFood) => {
     if (!user) return;
@@ -328,24 +358,14 @@ export default function DashboardPage() {
             dinner: 'Dinner',
           };
 
-          const dummySuggestions: SuggestedFood[] = [
-            { food_name: 'Omelette', quantity_g: 120, calories: 220, protein: 16, carbs: 2, fat: 17, fibre: 0, unit: 'g', food_library_id: null, meal_type: 'breakfast', pattern: 'daily' },
-            { food_name: 'Toast (White Bread)', quantity_g: 60, calories: 156, protein: 5, carbs: 29, fat: 2, fibre: 1, unit: 'g', food_library_id: null, meal_type: 'breakfast', pattern: 'daily' },
-            { food_name: 'Black Coffee', quantity_g: 200, calories: 4, protein: 0, carbs: 1, fat: 0, fibre: 0, unit: 'ml', food_library_id: null, meal_type: 'breakfast', pattern: 'weekly' },
-            { food_name: 'Dal Tadka', quantity_g: 200, calories: 170, protein: 9, carbs: 22, fat: 5, fibre: 4, unit: 'g', food_library_id: null, meal_type: 'lunch', pattern: 'daily' },
-            { food_name: 'Jeera Rice', quantity_g: 180, calories: 234, protein: 4, carbs: 46, fat: 4, fibre: 1, unit: 'g', food_library_id: null, meal_type: 'lunch', pattern: 'weekly' },
-            { food_name: 'Paneer Butter Masala', quantity_g: 200, calories: 330, protein: 14, carbs: 12, fat: 26, fibre: 2, unit: 'g', food_library_id: null, meal_type: 'lunch', pattern: 'daily' },
-            { food_name: 'Roti', quantity_g: 40, calories: 104, protein: 3, carbs: 18, fat: 3, fibre: 2, unit: 'g', food_library_id: null, meal_type: 'lunch', pattern: 'biweekly' },
-            { food_name: 'Raita', quantity_g: 100, calories: 60, protein: 3, carbs: 5, fat: 3, fibre: 0, unit: 'g', food_library_id: null, meal_type: 'lunch', pattern: 'biweekly' },
-          ];
-          const allSuggestions = [...suggestions, ...dummySuggestions];
+          const allSuggestions = suggestions;
 
           let cardIndex = 0;
           return mealOrder.map((type) => {
             const entries = logs.filter(l => l.meal_type === type);
             const mealCalories = entries.reduce((sum, e) => sum + (e.status === 'confirmed' ? (e.calories ?? 0) : 0), 0);
             const loggedNames = new Set(entries.map(e => e.food_name));
-            const mealSuggestions = showSuggestions && !dismissedMeals.has(type)
+            const mealSuggestions = showSuggestions && !dismissedMeals.has(`${formatDate(selectedDate)}:${type}`)
               ? allSuggestions.filter(s => s.meal_type === type && !loggedNames.has(s.food_name))
               : [];
             const hasContent = entries.length > 0 || mealSuggestions.length > 0;
@@ -397,7 +417,7 @@ export default function DashboardPage() {
                           <SuggestedFoods
                             items={mealSuggestions}
                             onAdd={handleSuggestionAdd}
-                            onDismiss={() => setDismissedMeals(prev => new Set(prev).add(type))}
+                            onDismiss={() => dismissSuggestions(`${formatDate(selectedDate)}:${type}`)}
                             embedded
                           />
                         </motion.div>
@@ -421,7 +441,7 @@ export default function DashboardPage() {
                         key={`suggest-${type}`}
                         items={mealSuggestions}
                         onAdd={handleSuggestionAdd}
-                        onDismiss={() => setDismissedMeals(prev => new Set(prev).add(type))}
+                        onDismiss={() => dismissSuggestions(`${formatDate(selectedDate)}:${type}`)}
                         embedded
                       />
                     </AnimatePresence>

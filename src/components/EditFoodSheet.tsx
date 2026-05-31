@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Drumstick, Wheat, Droplet, Leaf, Trash2 } from 'lucide-react';
 import { FoodLogEntry, FoodLibraryItem } from '@/lib/types';
-import { calculateNutrition, scaleNutritionFromEntry } from '@/lib/nutrition';
+import { calculateNutrition, scaleNutritionFromEntry, getQuantityWarning } from '@/lib/nutrition';
 import { fetchFoodLibraryItem } from '@/lib/supabase-data';
 
 interface EditFoodSheetProps {
@@ -61,6 +61,13 @@ export default function EditFoodSheet({ entry, onClose, onSave, onDelete }: Edit
     if (libraryItem) return calculateNutrition(quantity, libraryItem);
     return scaleNutritionFromEntry(quantity, entry);
   }, [quantity, entry, libraryItem]);
+
+  const calPer100 = useMemo(() => {
+    if (libraryItem) return libraryItem.calories_per_100g;
+    if (entry && entry.quantity_g > 0) return ((entry.calories ?? 0) / entry.quantity_g) * 100;
+    return 0;
+  }, [entry, libraryItem]);
+  const qtyWarning = entry ? getQuantityWarning(quantity, calPer100) : null;
 
   const hasChanges = entry ? (quantity !== entry.quantity_g || mealType !== entry.meal_type) : false;
 
@@ -131,14 +138,14 @@ export default function EditFoodSheet({ entry, onClose, onSave, onDelete }: Edit
                   Quantity
                 </div>
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="flex-1 flex items-center bg-bg-secondary rounded-xl px-4 py-3 focus-within:ring-2 focus-within:ring-accent/25 transition-shadow">
+                  <div className={`flex-1 flex items-center bg-bg-secondary rounded-xl px-4 py-3 transition-shadow ${qtyWarning?.highlight === 'quantity' ? 'ring-2 ring-orange-400' : 'focus-within:ring-2 focus-within:ring-accent/25'}`}>
                     <input
                       type="text"
                       inputMode="numeric"
                       pattern="[0-9]*"
                       value={quantity}
                       onChange={(e) => handleQuantityChange(e.target.value)}
-                      className="flex-1 bg-transparent border-none text-[17px] font-medium text-right outline-none w-full"
+                      className={`flex-1 bg-transparent border-none text-[17px] font-medium text-right outline-none w-full ${qtyWarning?.highlight === 'quantity' ? 'text-orange-500' : ''}`}
                     />
                     <span className="text-[15px] text-text-secondary ml-1.5">{unitLabel}</span>
                   </div>
@@ -162,6 +169,18 @@ export default function EditFoodSheet({ entry, onClose, onSave, onDelete }: Edit
                     </motion.button>
                   ))}
                 </div>
+                <AnimatePresence>
+                  {qtyWarning && (
+                    <motion.div
+                      className="text-[12px] text-orange-500 mt-2"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                    >
+                      {qtyWarning.message}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </motion.div>
 
               {/* Meal type */}
@@ -200,8 +219,8 @@ export default function EditFoodSheet({ entry, onClose, onSave, onDelete }: Edit
                 transition={{ delay: 0.25 }}
               >
                 <div className="flex items-baseline gap-1.5 mb-3">
-                  <span className="text-[28px] font-semibold">{nutrition.calories}</span>
-                  <span className="text-[15px] text-text-secondary">cal</span>
+                  <span className={`text-[28px] font-semibold ${qtyWarning?.highlight === 'calories' ? 'text-orange-500' : ''}`}>{nutrition.calories}</span>
+                  <span className={`text-[15px] ${qtyWarning?.highlight === 'calories' ? 'text-orange-500' : 'text-text-secondary'}`}>cal</span>
                 </div>
                 <div className="grid grid-cols-2 gap-y-2.5 gap-x-8">
                   {[

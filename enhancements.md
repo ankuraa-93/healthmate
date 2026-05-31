@@ -1,7 +1,5 @@
 # HealthMate — Future Enhancements
 
-
-
 Instructions:
 
 - Don't change any existing bullet text. You can add. 
@@ -27,13 +25,14 @@ Instructions:
 - ~~Subtle shadows on weekly strip header and bottom nav~~ - Completed ✅
 - ~~Consistent styling between dashboard and Log Food sheet — grouped cards, layout, colors match~~ - Completed ✅
 - ~~Log Food sheet UX polish — iOS-style "Done" text button, green tick after food names (flashes to spinner on save), chevron down/up for expand/collapse, stepped loading messages ("Identifying food..." → "Logging X foods...")~~ - Completed ✅
-- Frequently logged logic — done (renamed to "Suggested", moved to dashboard with pattern-based logic: daily/weekly/biweekly). Dummy test data still in page.tsx — remove before final ship.
-- If user hides suggested tray, don't show it again for the same day + meal when page refreshes.
+- ~~Frequently logged logic — done (renamed to "Suggested", moved to dashboard with pattern-based logic: daily/weekly/biweekly). Dummy test data still in page.tsx — remove before final ship.~~ - Completed ✅
+- ~~If user hides suggested tray, don't show it again for the same day + meal when page refreshes.~~ - Completed ✅
+- ~~The microphone turns on as soon as the log food bottom sheet opens. I know we did this because the initial audio being sent to whisper was truncated. But I think we can ask for permission when the bottom sheet opens but actually switch on the microphone only when user clicks on the voice button.~~ - Completed ✅
 
 ### Add Food
 
-- Option to undo in the toast after food is deleted (since there is no confirmation screen after delete)
-- Warning for erroneous quantities
+- ~~Option to undo in the toast after food is deleted (since there is no confirmation screen after delete)~~ - Completed ✅
+- ~~Warning for erroneous quantities~~ - Completed ✅
 
 ### Nutrition & Data
 

@@ -22,6 +22,18 @@ export function calculateNutrition(
   };
 }
 
+export interface QuantityWarning {
+  message: string;
+  highlight: 'quantity' | 'calories';
+}
+
+export function getQuantityWarning(quantityG: number, caloriesPer100g: number): QuantityWarning | null {
+  if (quantityG <= 0) return { message: 'Quantity must be greater than zero', highlight: 'quantity' };
+  const totalCal = (caloriesPer100g * quantityG) / 100;
+  if (totalCal > 600) return { message: 'Seems too high for single serve', highlight: 'calories' };
+  return null;
+}
+
 export function scaleNutritionFromEntry(
   quantityG: number,
   entry: FoodLogEntry

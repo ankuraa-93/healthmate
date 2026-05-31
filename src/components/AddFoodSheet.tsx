@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mic, ArrowUp, X, Check, ChevronDown, Trash2, Loader2 } from 'lucide-react';
 import { insertFoodLog, deleteFoodLog, updateFoodLog } from '@/lib/supabase-data';
+import { getQuantityWarning } from '@/lib/nutrition';
 
 // --- Types ---
 
@@ -245,11 +246,9 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast }: Omit<AddFoodSh
 
   useEffect(() => {
     if (micSupported) {
-      navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      }).then(stream => {
-        micStreamRef.current = stream;
-      }).catch(() => {});
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => { stream.getTracks().forEach(t => t.stop()); })
+        .catch(() => {});
     }
     return () => {
       if (mediaRecorderRef.current?.state !== 'inactive') {
@@ -343,6 +342,7 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast }: Omit<AddFoodSh
                         const nutrition = scaleNutrition(item);
                         const isExpanded = expandedIndex === idx;
                         const unitLabel = item.unit === 'ml' ? 'ml' : 'g';
+                        const qtyWarning = getQuantityWarning(item.quantity_g, item.calories_per_100g);
 
                         return (
                           <motion.div
@@ -372,12 +372,17 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast }: Omit<AddFoodSh
                                   </div>
                                   <div className="flex items-baseline justify-between gap-2 mt-px text-[13px] text-text-secondary">
                                     <span className="whitespace-nowrap">
-                                      {item.quantity_g}{unitLabel} &middot; {nutrition.calories} cal
+                                      <span className={qtyWarning?.highlight === 'quantity' ? 'text-orange-500 font-medium' : ''}>{item.quantity_g}{unitLabel}</span>
+                                      {' '}&middot;{' '}
+                                      <span className={qtyWarning?.highlight === 'calories' ? 'text-orange-500 font-medium' : ''}>{nutrition.calories} cal</span>
                                     </span>
                                     <span className="whitespace-nowrap">
                                       P:{nutrition.protein} C:{nutrition.carbs} F:{nutrition.fat} Fi:{nutrition.fibre}
                                     </span>
                                   </div>
+                                  {qtyWarning && (
+                                    <div className="text-[12px] text-orange-500 mt-0.5">{qtyWarning.message}</div>
+                                  )}
                                 </div>
                                 <motion.div
                                   className="flex-shrink-0 text-text-tertiary"

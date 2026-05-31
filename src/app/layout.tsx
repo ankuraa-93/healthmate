@@ -3,8 +3,8 @@ import AuthProvider from "@/components/AuthProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "HealthMate",
-  description: "Track your calories with natural language",
+  title: "Calorific",
+  description: "Accurate tracking in seconds, not minutes",
 };
 
 export default function RootLayout({
