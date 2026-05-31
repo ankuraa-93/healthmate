@@ -57,7 +57,7 @@ export default function DashboardPage() {
   const [dismissedMeals, setDismissedMeals] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set<string>();
     try {
-      const stored = sessionStorage.getItem('hm-dismissed-suggestions');
+      const stored = localStorage.getItem('hm-dismissed-suggestions');
       if (stored) return new Set<string>(JSON.parse(stored));
     } catch {}
     return new Set<string>();
@@ -137,7 +137,7 @@ export default function DashboardPage() {
   const dismissSuggestions = useCallback((key: string) => {
     setDismissedMeals(prev => {
       const next = new Set(prev).add(key);
-      try { sessionStorage.setItem('hm-dismissed-suggestions', JSON.stringify([...next])); } catch {}
+      try { localStorage.setItem('hm-dismissed-suggestions', JSON.stringify([...next])); } catch {}
       return next;
     });
   }, []);
