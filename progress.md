@@ -503,3 +503,32 @@ Moved food suggestions from AddFoodSheet to the dashboard, with pattern-based lo
 - Remove dummy suggestion data from page.tsx
 - Remaining v1 items: undo toast after delete, warning for erroneous quantities
 - See `enhancements.md` for full list
+
+## Session: 2026-05-31 — Rename + nav fix + shareable links
+
+### Changes
+1. **Renamed app**: Calorific → Calorrific (double R, sounds like "terrific"). Updated auth page, layout metadata, Gemini system prompt.
+
+2. **Fixed nav bar scrolling on iOS**: `overscroll-behavior: none` on html/body in globals.css, `touch-action: manipulation` + `position: sticky` on BottomNav, `overscroll-contain` on dashboard scroll container.
+
+3. **Shareable daily log links**:
+   - **Share button**: iOS-style (square+arrow) icon in dashboard header top-right. Uses `navigator.share` on mobile (native share sheet), clipboard fallback on desktop.
+   - **share_links table**: token + user_id + logged_date, RLS for owner insert/read.
+   - **get_shared_log RPC**: `SECURITY DEFINER` function accepts (token, optional target_date). Returns profile (name, email, goals), food entries for the date, and weekly calorie totals. Bypasses RLS for public access.
+   - **`/share/[token]` page**: read-only dashboard clone — WeekStrip (with owner name/email before month label), CalorieRing, MacroGrid, FoodCards grouped by meal. No FAB, no BottomNav, no edit/delete, no suggested foods. Supports day navigation (tap/swipe), pull-to-refresh.
+   - **AuthProvider updated**: `/share/*` routes excluded from auth redirect.
+   - **`getOrCreateShareLink`** in supabase-data.ts: checks for existing token (user+date), creates if not found (12-char UUID slug).
+
+### Files changed
+- `src/app/auth/page.tsx` — rename
+- `src/app/layout.tsx` — rename
+- `src/lib/gemini.ts` — rename in system prompt
+- `src/app/globals.css` — overscroll-behavior: none
+- `src/components/BottomNav.tsx` — sticky + touch-action
+- `src/app/page.tsx` — share button, overscroll-contain, share handler
+- `src/components/AuthProvider.tsx` — /share/* public route
+- `src/components/WeekStrip.tsx` — ownerLabel prop
+- `src/lib/supabase-data.ts` — getOrCreateShareLink
+- `src/app/share/[token]/page.tsx` — server component (token extraction)
+- `src/app/share/[token]/ShareDashboard.tsx` — read-only dashboard client component
+- `supabase-share-links.sql` — table + RPC function

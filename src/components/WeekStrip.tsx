@@ -8,6 +8,7 @@ interface WeekStripProps {
   onSelectDate: (date: Date) => void;
   weeklyCalories: Record<string, number>;
   calorieTarget: number;
+  ownerLabel?: string;
 }
 
 function getWeekDays(date: Date): Date[] {
@@ -38,7 +39,7 @@ const slideVariants = {
   exit: (d: number) => ({ x: `${(d || 1) * -100}%` }),
 };
 
-export default function WeekStrip({ selectedDate, onSelectDate, weeklyCalories, calorieTarget }: WeekStripProps) {
+export default function WeekStrip({ selectedDate, onSelectDate, weeklyCalories, calorieTarget, ownerLabel }: WeekStripProps) {
   const days = getWeekDays(selectedDate);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -94,7 +95,9 @@ export default function WeekStrip({ selectedDate, onSelectDate, weeklyCalories, 
       transition={{ duration: 0.4 }}
     >
       <div className="text-center mb-2">
-        <span className="text-[13px] font-medium text-text-secondary">{monthLabel}</span>
+        <span className="text-[13px] font-medium text-text-secondary">
+          {ownerLabel && <>{ownerLabel} &middot; </>}{monthLabel}
+        </span>
       </div>
       <div
         className="relative overflow-hidden px-2"

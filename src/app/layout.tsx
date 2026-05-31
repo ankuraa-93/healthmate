@@ -3,7 +3,7 @@ import AuthProvider from "@/components/AuthProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Calorific",
+  title: "Calorrific",
   description: "Accurate tracking in seconds, not minutes",
 };
 

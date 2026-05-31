@@ -18,7 +18,7 @@ export const flashModelWithSearch = genAI.getGenerativeModel({
   tools: [{ googleSearch: {} } as never],
 });
 
-export const PARSE_SYSTEM_PROMPT = `You are a food parsing engine for an Indian calorie tracking app called Calorific.
+export const PARSE_SYSTEM_PROMPT = `You are a food parsing engine for an Indian calorie tracking app called Calorrific.
 
 Your job: take natural language food input and return structured JSON.
 

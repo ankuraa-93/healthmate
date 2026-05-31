@@ -46,11 +46,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (loading) return;
 
-    const isAuthPage = pathname === '/auth';
+    const isPublicPage = pathname === '/auth' || pathname.startsWith('/share/');
 
-    if (!user && !isAuthPage) {
+    if (!user && !isPublicPage) {
       router.replace('/auth');
-    } else if (user && isAuthPage) {
+    } else if (user && pathname === '/auth') {
       router.replace('/');
     }
   }, [user, loading, pathname, router]);

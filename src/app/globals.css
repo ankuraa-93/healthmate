@@ -23,9 +23,14 @@
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+html {
+  overscroll-behavior: none;
+}
+
 body {
   background: var(--color-bg-secondary);
   color: var(--color-text-primary);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
 }

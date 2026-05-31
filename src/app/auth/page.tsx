@@ -93,7 +93,7 @@ export default function AuthPage() {
               <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
             </svg>
           </motion.div>
-          <h1 className="text-2xl font-semibold">Calorific</h1>
+          <h1 className="text-2xl font-semibold">Calorrific</h1>
           <p className="text-text-secondary text-sm mt-1">Accurate tracking in seconds, not minutes</p>
         </div>
 

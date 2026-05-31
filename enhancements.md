@@ -29,6 +29,10 @@ Instructions:
 - ~~If user hides suggested tray, don't show it again for the same day + meal when page refreshes.~~ - Completed ✅
 - ~~The microphone turns on as soon as the log food bottom sheet opens. I know we did this because the initial audio being sent to whisper was truncated. But I think we can ask for permission when the bottom sheet opens but actually switch on the microphone only when user clicks on the voice button.~~ - Completed ✅
 
+- ~~Rename app from Calorific to Calorrific (double R — sounds like "terrific")~~ - Completed ✅
+- ~~Fix bottom nav bar scrolling on iOS up-swipe — overscroll-behavior: none on html/body, sticky nav, overscroll-contain on scroll container~~ - Completed ✅
+- ~~Shareable daily log link — logged-in user taps iOS share icon in dashboard header, generates a unique URL. Viewer sees read-only dashboard (same UI: WeekStrip with owner name, calorie ring, macros, meal cards) without FAB, edit, delete, suggestions, or bottom nav. Viewer can navigate between days. Uses share_links DB table + get_shared_log RPC (SECURITY DEFINER) to bypass RLS for public access.~~ - Completed ✅
+
 ### Add Food
 
 - ~~Option to undo in the toast after food is deleted (since there is no confirmation screen after delete)~~ - Completed ✅

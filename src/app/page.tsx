@@ -13,7 +13,7 @@ import EditFoodSheet from '@/components/EditFoodSheet';
 import Toast from '@/components/Toast';
 import WeekStrip from '@/components/WeekStrip';
 import { useAuth } from '@/components/AuthProvider';
-import { fetchFoodLogs, fetchProfile, updateFoodLog, deleteFoodLog, insertFoodLog, fetchSuggestions, fetchWeeklyCalories, SuggestedFood } from '@/lib/supabase-data';
+import { fetchFoodLogs, fetchProfile, updateFoodLog, deleteFoodLog, insertFoodLog, fetchSuggestions, fetchWeeklyCalories, getOrCreateShareLink, SuggestedFood } from '@/lib/supabase-data';
 import SuggestedFoods from '@/components/SuggestedFoods';
 import { FoodLogEntry, Profile } from '@/lib/types';
 
@@ -73,6 +73,7 @@ export default function DashboardPage() {
   const deleteTimer = useRef<ReturnType<typeof setTimeout>>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [weeklyCalories, setWeeklyCalories] = useState<Record<string, number>>({});
+  const [sharing, setSharing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const touchStartY = useRef(0);
@@ -184,6 +185,26 @@ export default function DashboardPage() {
     toastTimer.current = setTimeout(() => setToast({ visible: false, message: '' }), duration);
   }, []);
 
+  const handleShare = useCallback(async () => {
+    if (!user || sharing) return;
+    setSharing(true);
+    const token = await getOrCreateShareLink(user.id, formatDate(selectedDate));
+    setSharing(false);
+    if (!token) {
+      showToast('Failed to create share link');
+      return;
+    }
+    const url = `${window.location.origin}/share/${token}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'My food log', url });
+      } catch {}
+    } else {
+      await navigator.clipboard.writeText(url);
+      showToast('Link copied to clipboard ✓');
+    }
+  }, [user, selectedDate, sharing, showToast]);
+
   const handleSheetClose = useCallback(() => {
     setSheetOpen(false);
     refreshLogs();
@@ -294,18 +315,30 @@ export default function DashboardPage() {
   return (
     <div className="absolute inset-0 flex flex-col">
       {/* Weekly strip header */}
-      <div className="flex-shrink-0 pt-[max(env(safe-area-inset-top),12px)] pb-1 bg-bg-primary z-10 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+      <div className="flex-shrink-0 pt-[max(env(safe-area-inset-top),12px)] pb-1 bg-bg-primary z-10 shadow-[0_2px_8px_rgba(0,0,0,0.06)] relative">
         <WeekStrip
           selectedDate={selectedDate}
           onSelectDate={setSelectedDate}
           weeklyCalories={mergedWeeklyCalories}
           calorieTarget={profile.daily_calorie_goal}
         />
+        <motion.button
+          className="absolute top-[max(env(safe-area-inset-top),12px)] right-3 w-8 h-8 flex items-center justify-center bg-transparent border-none cursor-pointer text-text-secondary"
+          whileTap={{ scale: 0.85 }}
+          onClick={handleShare}
+          disabled={sharing}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={sharing ? 'opacity-40' : ''}>
+            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+            <polyline points="16 6 12 2 8 6"/>
+            <line x1="12" y1="2" x2="12" y2="15"/>
+          </svg>
+        </motion.button>
       </div>
 
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto scrollbar-none"
+        className="flex-1 overflow-y-auto scrollbar-none overscroll-contain"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}

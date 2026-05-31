@@ -135,6 +135,32 @@ export async function fetchFoodLibraryItem(id: string): Promise<FoodLibraryItem 
   return data;
 }
 
+// --- Share Links ---
+
+export async function getOrCreateShareLink(userId: string, date: string): Promise<string | null> {
+  const { data: existing } = await supabase
+    .from('share_links')
+    .select('token')
+    .eq('user_id', userId)
+    .eq('logged_date', date)
+    .single();
+
+  if (existing) return existing.token;
+
+  const token = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+  const { data: created, error } = await supabase
+    .from('share_links')
+    .insert({ token, user_id: userId, logged_date: date })
+    .select('token')
+    .single();
+
+  if (error) {
+    console.error('createShareLink error:', error);
+    return null;
+  }
+  return created?.token ?? null;
+}
+
 // --- Suggestions (pattern-based) ---
 
 export interface SuggestedFood {
