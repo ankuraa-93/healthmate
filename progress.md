@@ -532,3 +532,77 @@ Moved food suggestions from AddFoodSheet to the dashboard, with pattern-based lo
 - `src/app/share/[token]/page.tsx` — server component (token extraction)
 - `src/app/share/[token]/ShareDashboard.tsx` — read-only dashboard client component
 - `supabase-share-links.sql` — table + RPC function
+
+### Follow-up fix
+- **Persist dismissed suggestions**: changed `sessionStorage` → `localStorage` so hidden suggestion trays stay dismissed across tab closes and browser restarts.
+
+## Session: 2026-06-01 — Food images (v1 feature)
+
+### What was done
+1. **`image_url` column added to `food_library`** — schema, types, migration SQL. NOT stored in `food_log` — fetched via join from `food_library` at query time.
+
+2. **Dashboard/UI wired for images**:
+   - `fetchFoodLogs` joins `food_library:food_library_id(image_url)` to get images
+   - `FoodCard`, `EditFoodSheet`, `AddFoodSheet` tray — show `<img>` thumbnail when `image_url` present, letter avatar fallback on null/broken URLs
+   - Share page `get_shared_log` RPC updated to LEFT JOIN food_library for `image_url`
+   - React state-based fallback (not DOM manipulation) for broken image URLs
+   - No grey background on image thumbnails (transparent-friendly)
+   - SuggestedFoods widget does NOT use images (no thumbnails in that widget)
+
+3. **On-the-fly Gemini image search — built then removed**:
+   - Initially added `SEARCH_IMAGE_PROMPT` + separate Gemini call in match-food API
+   - Issues: Gemini returned hotlink-blocked URLs (kindpng, pngimg), unreliable results, added 1-2s latency
+   - Decided to move to batch background processing instead
+
+4. **Batch image backfill system (code complete, deployment pending)**:
+   - **Supabase Edge Function** (`supabase/functions/backfill-images/index.ts`):
+     - Queries food_library for items with `image_url IS NULL`
+     - Uses Google Custom Search API (image search) to find food photos
+     - Validates URLs with HEAD request (checks 200 + content-type: image/*)
+     - Batch size: 15 items per run
+     - `image_search_failed_at` column prevents re-querying failed items (retries after 30 days)
+     - Handles quota exhaustion gracefully (stops batch, partial results)
+     - 120s global deadline to stay within Edge Function timeout
+   - **pg_cron schedule** (`migrations/setup-image-cron.sql`):
+     - Every 4 hours (6 runs/day × 15 items = 90 queries/day, under 100 free/day Google limit)
+     - Uses pg_net `http_post` to invoke Edge Function
+   - **Google Custom Search Engine** configured with curated site list (Wikipedia, Unsplash, Pexels, Amazon.in, BigBasket, Blinkit, JioMart, Flipkart, FatSecret, Nutritionix)
+
+### Deployment steps remaining
+1. Run migration: `ALTER TABLE food_library ADD COLUMN IF NOT EXISTS image_search_failed_at timestamptz;`
+2. Re-run `supabase-share-links.sql` (updated RPC with image_url LEFT JOIN)
+3. User: finish Google Custom Search Engine setup (add sites from `google-cse-sites.txt`, get cx)
+4. Install Supabase CLI: `brew install supabase/tap/supabase`
+5. Set secrets: `supabase secrets set GOOGLE_CUSTOM_SEARCH_API_KEY=... GOOGLE_CUSTOM_SEARCH_CX=...`
+6. Deploy Edge Function: `supabase functions deploy backfill-images --project-ref hnxbjwwfdbbalrpthshk`
+7. Enable pg_cron + pg_net extensions in Supabase Dashboard
+8. Run `migrations/setup-image-cron.sql` (replace <SERVICE_ROLE_KEY>)
+9. Push code to GitHub (triggers Vercel auto-deploy)
+
+### Files created
+- `supabase/functions/backfill-images/index.ts` — Edge Function
+- `migrations/add-image-url.sql` — schema migration
+- `migrations/setup-image-cron.sql` — pg_cron schedule
+- `google-cse-sites.txt` — sites for Google Custom Search Engine
+
+### Files changed
+- `src/lib/types.ts` — added `image_url` to FoodLibraryItem (required) and FoodLogEntry (optional)
+- `src/lib/supabase-data.ts` — fetchFoodLogs joins food_library for image_url
+- `src/lib/gemini.ts` — removed SEARCH_IMAGE_PROMPT
+- `src/app/api/match-food/route.ts` — removed on-the-fly image search, fetches image_url from library for matched items
+- `src/components/FoodCard.tsx` — image thumbnail with state-based fallback
+- `src/components/AddFoodSheet.tsx` — FoodThumbnail component for tray items
+- `src/components/EditFoodSheet.tsx` — EditFoodThumbnail component
+- `src/app/share/[token]/ShareDashboard.tsx` — image_url in SharedEntry
+- `src/app/page.tsx` — passes image_url for suggestion-added entries
+- `src/lib/mock-data.ts` — added image_url: null to mock entries
+- `supabase-schema.sql` — added image_url + image_search_failed_at columns
+- `supabase-share-links.sql` — LEFT JOIN food_library for image_url in RPC
+- `tsconfig.json` — excluded supabase/ from TypeScript compilation
+
+### Key decisions
+- `image_url` lives only in `food_library`, not duplicated in `food_log` — fetched via join
+- Google Custom Search API over Gemini for image search (purpose-built, reliable URLs)
+- Supabase Edge Function + pg_cron over Vercel cron (150s timeout vs 10s)
+- Curated site list instead of "Search entire web" (Google deprecated that feature for new CSEs)
+- Google API key: `AIzaSyCJIL71TgGTgS1waCaIiiMsGy5pHHD4fk4`

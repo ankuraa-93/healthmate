@@ -13,6 +13,8 @@ create table food_library (
   serving_size_g numeric not null default 100,
   source text not null,
   unit text not null default 'g',
+  image_url text,
+  image_search_failed_at timestamptz,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );

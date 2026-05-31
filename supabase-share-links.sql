@@ -72,10 +72,12 @@ BEGIN
           'fat', f.fat,
           'fibre', f.fibre,
           'meal_type', f.meal_type,
-          'unit', f.unit
+          'unit', f.unit,
+          'image_url', fl.image_url
         ) ORDER BY f.created_at
       )
       FROM food_log f
+      LEFT JOIN food_library fl ON fl.id = f.food_library_id
       WHERE f.user_id = link_user_id
         AND f.logged_date = the_date
         AND f.status = 'confirmed'

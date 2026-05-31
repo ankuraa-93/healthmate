@@ -299,7 +299,7 @@ export default function DashboardPage() {
       unit: item.unit as 'g' | 'ml',
     });
     if (entry) {
-      setLogs(prev => [...prev, entry]);
+      setLogs(prev => [...prev, { ...entry, image_url: null }]);
       setSuggestions(prev => prev.filter(s => !(s.food_name === item.food_name && s.meal_type === item.meal_type)));
       showToast(`${item.food_name} logged ✓`);
     }

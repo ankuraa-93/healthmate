@@ -76,6 +76,7 @@ export async function POST(req: NextRequest) {
       carbs_per_100g: number;
       fat_per_100g: number;
       fibre_per_100g: number;
+      image_url?: string | null;
     }
 
     function atwaterCheck(item: MatchedItem): { expected: number; actual: number; deviation: number } {
@@ -167,6 +168,23 @@ export async function POST(req: NextRequest) {
       } catch (searchError) {
         console.error('Web search nutrition lookup failed, using LLM estimates:', searchError);
       }
+
+    }
+
+    // For matched items, fetch image_url from food_library
+    const matchedWithImages = matchedItems.filter(item => item.matched_library_id);
+    if (matchedWithImages.length > 0) {
+      const ids = matchedWithImages.map(i => i.matched_library_id!);
+      const { data: libRows } = await supabase
+        .from('food_library')
+        .select('id, image_url')
+        .in('id', ids);
+      if (libRows) {
+        const imageMap = new Map(libRows.map(r => [r.id, r.image_url]));
+        for (const item of matchedWithImages) {
+          item.image_url = imageMap.get(item.matched_library_id!) ?? null;
+        }
+      }
     }
 
     // Insert unmatched items into food_library
@@ -190,10 +208,11 @@ export async function POST(req: NextRequest) {
               serving_size_g: item.quantity_g,
               source,
               unit: item.unit,
+              image_url: item.image_url ?? null,
             },
             { onConflict: 'name' }
           )
-          .select('id')
+          .select('id, image_url')
           .single();
 
         if (error) {
@@ -205,6 +224,7 @@ export async function POST(req: NextRequest) {
           ...item,
           matched_library_id: newFood.id,
           matched_library_name: item.name,
+          image_url: newFood.image_url ?? item.image_url ?? null,
         };
       })
     );
@@ -216,6 +236,7 @@ export async function POST(req: NextRequest) {
       carbs_per_100g: item.carbs_per_100g ?? 0,
       fat_per_100g: item.fat_per_100g ?? 0,
       fibre_per_100g: item.fibre_per_100g ?? 0,
+      image_url: item.image_url ?? null,
     }));
 
     return NextResponse.json({ items: sanitizedItems });

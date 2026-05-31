@@ -21,6 +21,7 @@ interface TrayItem {
   carbs_per_100g: number;
   fat_per_100g: number;
   fibre_per_100g: number;
+  image_url?: string | null;
 }
 
 interface AddFoodSheetProps {
@@ -51,6 +52,25 @@ function getAudioMimeType(): string {
     if (MediaRecorder.isTypeSupported(type)) return type;
   }
   return '';
+}
+
+function FoodThumbnail({ imageUrl, name }: { imageUrl?: string | null; name: string }) {
+  const [failed, setFailed] = useState(false);
+  if (imageUrl && !failed) {
+    return (
+      <img
+        src={imageUrl}
+        alt={name}
+        className="w-11 h-11 rounded-[10px] flex-shrink-0 object-cover"
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  return (
+    <div className="w-11 h-11 rounded-[10px] bg-bg-tertiary flex items-center justify-center text-lg flex-shrink-0">
+      {name.slice(0, 1).toUpperCase()}
+    </div>
+  );
 }
 
 // --- Component ---
@@ -358,9 +378,10 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast }: Omit<AddFoodSh
                               onClick={() => handleToggleExpand(idx)}
                             >
                               <div className="flex items-center gap-3">
-                                <div className="w-11 h-11 rounded-[10px] bg-bg-tertiary flex items-center justify-center text-lg flex-shrink-0">
-                                  {(item.matched_library_name || item.name).slice(0, 1).toUpperCase()}
-                                </div>
+                                <FoodThumbnail
+                                  imageUrl={item.image_url}
+                                  name={item.matched_library_name || item.name}
+                                />
                                 <div className="flex-1 min-w-0">
                                   <div className="text-[14px] font-medium leading-snug flex items-center gap-1.5">
                                     {item.matched_library_name || item.name}

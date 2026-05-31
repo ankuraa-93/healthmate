@@ -7,8 +7,9 @@ export interface FoodLibraryItem {
   fat_per_100g: number;
   fibre_per_100g: number;
   serving_size_g: number;
-  source: 'base' | 'usda_api' | 'llm_estimate';
+  source: 'base' | 'usda_api' | 'llm_estimate' | 'web_search';
   unit: 'g' | 'ml';
+  image_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -28,6 +29,7 @@ export interface FoodLogEntry {
   logged_date: string;
   status: 'confirmed' | 'processing';
   unit: 'g' | 'ml';
+  image_url?: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -7,6 +7,25 @@ import { FoodLogEntry, FoodLibraryItem } from '@/lib/types';
 import { calculateNutrition, scaleNutritionFromEntry, getQuantityWarning } from '@/lib/nutrition';
 import { fetchFoodLibraryItem } from '@/lib/supabase-data';
 
+function EditFoodThumbnail({ imageUrl, name }: { imageUrl?: string | null; name: string }) {
+  const [failed, setFailed] = useState(false);
+  if (imageUrl && !failed) {
+    return (
+      <img
+        src={imageUrl}
+        alt={name}
+        className="w-11 h-11 rounded-[10px] flex-shrink-0 object-cover"
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  return (
+    <div className="w-11 h-11 rounded-[10px] flex-shrink-0 bg-bg-tertiary flex items-center justify-center text-lg">
+      {name.slice(0, 1).toUpperCase()}
+    </div>
+  );
+}
+
 interface EditFoodSheetProps {
   entry: FoodLogEntry | null;
   onClose: () => void;
@@ -121,9 +140,7 @@ export default function EditFoodSheet({ entry, onClose, onSave, onDelete }: Edit
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
               >
-                <div className="w-11 h-11 rounded-[10px] flex-shrink-0 bg-bg-tertiary flex items-center justify-center text-lg">
-                  {entry.food_name.slice(0, 1).toUpperCase()}
-                </div>
+                <EditFoodThumbnail imageUrl={entry.image_url} name={entry.food_name} />
                 <span className="text-[22px] font-medium flex-1">{entry.food_name}</span>
               </motion.div>
 

@@ -41,7 +41,7 @@ export async function updateProfile(userId: string, updates: Partial<Pick<Profil
 export async function fetchFoodLogs(userId: string, date: string): Promise<FoodLogEntry[]> {
   const { data, error } = await supabase
     .from('food_log')
-    .select('*')
+    .select('*, food_library:food_library_id(image_url)')
     .eq('user_id', userId)
     .eq('logged_date', date)
     .order('created_at', { ascending: true });
@@ -50,7 +50,11 @@ export async function fetchFoodLogs(userId: string, date: string): Promise<FoodL
     console.error('fetchFoodLogs error:', error);
     return [];
   }
-  return data ?? [];
+  return (data ?? []).map(row => {
+    const { food_library, ...rest } = row as Record<string, unknown>;
+    const lib = food_library as { image_url: string | null } | null;
+    return { ...rest, image_url: lib?.image_url ?? null } as FoodLogEntry;
+  });
 }
 
 export async function insertFoodLog(entry: Omit<FoodLogEntry, 'id' | 'created_at' | 'updated_at'>): Promise<FoodLogEntry | null> {

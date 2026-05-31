@@ -21,6 +21,7 @@ interface SharedEntry {
   fibre: number | null;
   meal_type: string;
   unit: string;
+  image_url: string | null;
 }
 
 interface SharedData {

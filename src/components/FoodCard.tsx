@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { motion, useMotionValue, useTransform, PanInfo } from 'framer-motion';
 import { Trash2 } from 'lucide-react';
 import { FoodLogEntry } from '@/lib/types';
@@ -17,6 +17,8 @@ const REVEAL_THRESHOLD = -80;
 
 export default function FoodCard({ entry, index, showSeparator, onClick, onDelete }: FoodCardProps) {
   const unitLabel = entry.unit === 'ml' ? 'ml' : 'g';
+  const [imgFailed, setImgFailed] = useState(false);
+  const showImage = entry.image_url && !imgFailed;
   const x = useMotionValue(0);
   const deleteOpacity = useTransform(x, [-100, -60, 0], [1, 0.8, 0]);
   const [swiped, setSwiped] = useState(false);
@@ -107,9 +109,18 @@ export default function FoodCard({ entry, index, showSeparator, onClick, onDelet
         whileTap={!swiped && onClick ? { scale: 0.98 } : undefined}
       >
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-[10px] flex-shrink-0 bg-bg-tertiary flex items-center justify-center text-lg">
-            {entry.food_name.slice(0, 1).toUpperCase()}
-          </div>
+          {showImage ? (
+            <img
+              src={entry.image_url!}
+              alt={entry.food_name}
+              className="w-11 h-11 rounded-[10px] flex-shrink-0 object-cover"
+              onError={() => setImgFailed(true)}
+            />
+          ) : (
+            <div className="w-11 h-11 rounded-[10px] flex-shrink-0 bg-bg-tertiary flex items-center justify-center text-lg">
+              {entry.food_name.slice(0, 1).toUpperCase()}
+            </div>
+          )}
           <div className="flex-1 min-w-0">
             <div className="text-[14px] font-medium leading-snug">{entry.food_name}</div>
             {entry.status === 'confirmed' ? (
