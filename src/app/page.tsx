@@ -17,7 +17,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { fetchFoodLogs, fetchProfile, updateFoodLog, deleteFoodLog, insertFoodLog, fetchSuggestions, fetchWeeklyCalories, getOrCreateShareLink, SuggestedFood, insertProcessingJob, deleteProcessingJob, fetchProcessingJobs, uploadFoodPhoto, fetchSourceImages, SourceImage } from '@/lib/supabase-data';
 import SuggestedFoods from '@/components/SuggestedFoods';
 import { FoodLogEntry, Profile, ProcessingJob } from '@/lib/types';
-import { applyRotation } from '@/lib/image-utils';
+import { applyRotation, ProcessedImage } from '@/lib/image-utils';
 
 function formatDate(date: Date): string {
   const y = date.getFullYear();
@@ -324,6 +324,8 @@ export default function DashboardPage() {
     if (!user) return;
     const date = formatDate(selectedDate);
 
+    // Upload all photos and create processing jobs first (fast)
+    const jobs: { photo: ReviewPhoto; rotated: ProcessedImage; thumbnailUrl: string; job: ProcessingJob }[] = [];
     for (const photo of photos) {
       const rotated = await applyRotation(photo.processedImage, photo.rotation);
       const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
@@ -345,80 +347,80 @@ export default function DashboardPage() {
       }
 
       setProcessingJobs(prev => [...prev, job]);
+      jobs.push({ photo, rotated, thumbnailUrl, job });
+    }
 
-      (async () => {
-        try {
-          const parseRes = await fetch('/api/parse-food-image', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              image: rotated.originalBase64,
-              mimeType: rotated.mimeType,
-              mealType: photo.mealType,
-              currentHour: new Date().getHours(),
-            }),
-          });
-          if (!parseRes.ok) throw new Error((await parseRes.json().catch(() => ({}))).error || 'Image parse failed');
-          const parsed = await parseRes.json();
+    // Process photos sequentially to avoid Gemini rate limits
+    for (const { photo, rotated, thumbnailUrl, job } of jobs) {
+      try {
+        const parseRes = await fetch('/api/parse-food-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            image: rotated.originalBase64,
+            mimeType: rotated.mimeType,
+            mealType: photo.mealType,
+            currentHour: new Date().getHours(),
+          }),
+        });
+        if (!parseRes.ok) throw new Error((await parseRes.json().catch(() => ({}))).error || 'Image parse failed');
+        const parsed = await parseRes.json();
 
-          if (!parsed.items || parsed.items.length === 0) {
-            showToast('No food found in photo');
-            await deleteProcessingJob(job.id);
-            setProcessingJobs(prev => prev.filter(j => j.id !== job.id));
-            return;
-          }
-
-          const matchRes = await fetch('/api/match-food', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ items: parsed.items }),
-          });
-          if (!matchRes.ok) throw new Error((await matchRes.json().catch(() => ({}))).error || 'Match failed');
-          const matched = await matchRes.json();
-
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const insertPromises = matched.items.map(async (item: any) => {
-            const ratio = item.quantity_g / 100;
-            return insertFoodLog({
-              user_id: user.id,
-              food_library_id: item.matched_library_id || null,
-              food_name: item.matched_library_name || item.name,
-              quantity_g: item.quantity_g,
-              calories: Math.round(item.calories_per_100g * ratio),
-              protein: Math.round(item.protein_per_100g * ratio),
-              carbs: Math.round(item.carbs_per_100g * ratio),
-              fat: Math.round(item.fat_per_100g * ratio),
-              fibre: Math.round(item.fibre_per_100g * ratio),
-              meal_type: photo.mealType,
-              logged_date: date,
-              status: 'confirmed',
-              unit: item.unit || 'g',
-              input_source: 'image',
-              source_image_url: thumbnailUrl,
-            });
-          });
-
-          const results = await Promise.all(insertPromises);
-          const inserted = results.filter(Boolean) as FoodLogEntry[];
-
+        if (!parsed.items || parsed.items.length === 0) {
+          showToast('No food found in photo');
           await deleteProcessingJob(job.id);
           setProcessingJobs(prev => prev.filter(j => j.id !== job.id));
-          setLogs(prev => [...prev, ...inserted.map(e => ({ ...e, image_url: null }))]);
-          setSourceImages(prev => {
-            const exists = prev.find(s => s.url === thumbnailUrl);
-            if (exists) return prev;
-            return [...prev, { url: thumbnailUrl, mealType: photo.mealType, foodIds: inserted.map(e => e.id) }];
-          });
-          showToast(`${inserted.length} food${inserted.length > 1 ? 's' : ''} logged from photo ✓`);
-        } catch (err) {
-          console.error('Photo processing error:', err);
-          await deleteProcessingJob(job.id);
-          setProcessingJobs(prev => prev.filter(j => j.id !== job.id));
-          showToast('Failed to analyze photo — try again');
+          URL.revokeObjectURL(photo.processedImage.thumbnailUrl);
+          continue;
         }
 
-        URL.revokeObjectURL(photo.processedImage.thumbnailUrl);
-      })();
+        const matchRes = await fetch('/api/match-food', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: parsed.items }),
+        });
+        if (!matchRes.ok) throw new Error((await matchRes.json().catch(() => ({}))).error || 'Match failed');
+        const matched = await matchRes.json();
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const insertPromises = matched.items.map(async (item: any) => {
+          const ratio = item.quantity_g / 100;
+          return insertFoodLog({
+            user_id: user.id,
+            food_library_id: item.matched_library_id || null,
+            food_name: item.matched_library_name || item.name,
+            quantity_g: item.quantity_g,
+            calories: Math.round(item.calories_per_100g * ratio),
+            protein: Math.round(item.protein_per_100g * ratio),
+            carbs: Math.round(item.carbs_per_100g * ratio),
+            fat: Math.round(item.fat_per_100g * ratio),
+            fibre: Math.round(item.fibre_per_100g * ratio),
+            meal_type: photo.mealType,
+            logged_date: date,
+            status: 'confirmed',
+            unit: item.unit || 'g',
+            input_source: 'image',
+            source_image_url: thumbnailUrl,
+          });
+        });
+
+        const results = await Promise.all(insertPromises);
+        const inserted = results.filter(Boolean) as FoodLogEntry[];
+
+        await deleteProcessingJob(job.id);
+        setProcessingJobs(prev => prev.filter(j => j.id !== job.id));
+        setLogs(prev => [...prev, ...inserted.map(e => ({ ...e, image_url: null }))]);
+        setSourceImages(prev => {
+          const exists = prev.find(s => s.url === thumbnailUrl);
+          if (exists) return prev;
+          return [...prev, { url: thumbnailUrl, mealType: photo.mealType, foodIds: inserted.map(e => e.id) }];
+        });
+        showToast(`${inserted.length} food${inserted.length > 1 ? 's' : ''} logged from photo ✓`);
+      } catch (err) {
+        console.error('Photo processing error:', err);
+      }
+
+      URL.revokeObjectURL(photo.processedImage.thumbnailUrl);
     }
   }, [user, selectedDate, showToast]);
 

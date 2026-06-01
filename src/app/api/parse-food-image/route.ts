@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { flashModelVision, PARSE_IMAGE_SYSTEM_PROMPT } from '@/lib/gemini';
 import { withRetry } from '@/lib/gemini-retry';
 
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
   try {
     const { image, mimeType, mealType, currentHour } = await req.json();
