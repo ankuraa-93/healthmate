@@ -602,7 +602,114 @@ Moved food suggestions from AddFoodSheet to the dashboard, with pattern-based lo
 
 ### Key decisions
 - `image_url` lives only in `food_library`, not duplicated in `food_log` — fetched via join
-- Google Custom Search API over Gemini for image search (purpose-built, reliable URLs)
 - Supabase Edge Function + pg_cron over Vercel cron (150s timeout vs 10s)
 - Curated site list instead of "Search entire web" (Google deprecated that feature for new CSEs)
 - Google API key: `AIzaSyCJIL71TgGTgS1waCaIiiMsGy5pHHD4fk4`
+- Gemini API key: `AIzaSyDnaQjd-Bsll25rlBAVQ3SoHIq3ySVDR1Q`
+
+## Session: 2026-06-01 — Food images deployment + image search API investigation
+
+### Infrastructure deployed
+1. **SQL migrations run** — `image_url` + `image_search_failed_at` columns on food_library, updated `get_shared_log` RPC with image_url LEFT JOIN
+2. **Supabase CLI installed** — `brew install supabase/tap/supabase` (v2.102.0)
+3. **Supabase secrets set** — `GOOGLE_CUSTOM_SEARCH_API_KEY`, `GOOGLE_CUSTOM_SEARCH_CX`, `GEMINI_API_KEY` (via `SUPABASE_ACCESS_TOKEN` env var — `supabase login` doesn't persist in all shells)
+4. **Edge Function deployed** — `backfill-images` on project `hnxbjwwfdbbalrpthshk`
+5. **pg_cron + pg_net extensions enabled** — pg_cron in `pg_catalog` schema, pg_net in `extensions` schema
+6. **Cron job registered** — then unscheduled (image search not working yet)
+
+### Image search API investigation (all failed)
+
+**Google Custom Search JSON API:**
+- API enabled, key configured, CSE created (cx: `c631bdb48cb784068`) with curated site list
+- 403 error: "This project does not have the access to Custom Search JSON API"
+- Root cause: Google deprecated Custom Search JSON API for new customers (January 2026). Final shutdown for existing customers: January 2027. User's project was created after the cutoff.
+- No workaround — permanent block for new projects
+
+**Gemini with Google Search grounding:**
+- Switched Edge Function from Google CSE to single Gemini call with `googleSearch` grounding tool
+- Fixed: removed `responseMimeType: "application/json"` (incompatible with tools), added code fence stripping
+- Gemini returns plausible-looking URLs (Wikipedia, cookwithmanali, Amazon) but ALL are hallucinated — return 404/400 on HEAD validation
+- LLMs fundamentally can't return exact image URLs reliably, even with grounding
+
+**Pexels (considered, not tried):**
+- Good for generic dishes but no branded/packaged food coverage (Kurkure, Maggi etc.)
+- User tested on pexels.com, confirmed poor results for Indian branded items
+
+### What's still deployed but inactive
+- Edge Function `backfill-images` exists on Supabase (original Google CSE version, non-functional)
+- Secrets set: `GOOGLE_CUSTOM_SEARCH_API_KEY`, `GOOGLE_CUSTOM_SEARCH_CX`, `GEMINI_API_KEY`
+- pg_cron + pg_net extensions enabled (no active cron jobs)
+- `image_search_failed_at` timestamps reset to NULL (ready for retry with working solution)
+
+### Next steps for food images (decided approach)
+**Two-tier image search (free):**
+1. **Pexels API** for dishes/generic foods (dal tadka, paneer paratha, omelette etc.) — free, good food photography
+2. **JioMart / BigBasket internal APIs** for branded/packaged products (Kurkure, Maggi, Amul etc.) — their frontend search endpoints return JSON with clean CDN image URLs. Reverse-engineer by inspecting network tab on their websites.
+3. Classify each food_library item as "packaged" vs "dish" to route to the right source
+4. Update Edge Function with two-tier logic
+5. Batch 50 items/run, schedule overnight (3-6am IST) for initial backfill
+
+**Rejected alternatives:**
+- Brave Search API — viable but untested
+- SerpAPI — $50/mo, too expensive for this use case
+- Gemini grounding — hallucates URLs
+- Google Custom Search JSON API — deprecated for new customers
+
+## Session: 2026-06-01 — Image-based food logging (v2 feature) + delete bug fix
+
+### Bug fix: delete-with-undo losing data
+- **Root cause**: `handleDeleteWithUndo` deferred the actual `deleteFoodLog()` call by 5 seconds via `setTimeout` to allow undo. If user closed tab or navigated away during that window, the timer never fired and the DB delete was silently lost.
+- **Fix**: delete from DB immediately on swipe/tap. Undo now **re-inserts** the entry via `insertFoodLog` instead of cancelling a timer. Entry gets a new ID on re-insert but all food data is preserved.
+- Removed `deleteTimer` ref entirely.
+
+### Image-based food logging (v2 feature)
+Full implementation of photo-based food logging with async processing.
+
+#### Architecture
+1. **`processing_jobs` table** — separate from `food_log` to avoid polluting food data with placeholder rows. Tracks in-flight image analysis jobs (id, user_id, meal_type, logged_date, image_url, status).
+2. **`food-photos` Supabase Storage bucket** — stores resized thumbnails (800px max width). Original full-res images sent to Gemini and discarded.
+3. **`input_source` column on `food_log`** — `'text'` | `'voice'` | `'image'` (default `'text'`). Camera icon shown on image-sourced food cards.
+4. **`source_image_url` column on `food_log`** — links food entries back to the source photo for verification.
+
+#### New components & routes
+- **`PhotoReviewSheet`** — full-screen dark overlay for reviewing selected photos before submit. Features: swipe between photos, rotate (90° increments, baked into image before upload/Gemini call), per-photo meal type selector (4 chips), remove individual photos, add more photos (+), submit button.
+- **`/api/parse-food-image`** — accepts full-res base64 image, sends to Gemini 2.5 Flash vision with food identification system prompt, returns structured items (same format as `/api/parse-food`).
+- **`image-utils.ts`** — `processImage()` resizes to 800px thumbnail + keeps original base64. `applyRotation()` bakes rotation into both thumbnail blob and original base64 via canvas.
+
+#### Flow
+1. User taps camera icon in AddFoodSheet → file picker (camera capture or gallery, multi-select)
+2. Full-screen PhotoReviewSheet opens — review, rotate, assign meal types per photo
+3. Submit → sheet closes → for each photo:
+   - Rotation applied to image data (not just CSS)
+   - Resized thumbnail uploaded to Supabase Storage
+   - `processing_job` row inserted → dashboard shows "Identifying foods..." card with photo thumbnail
+   - Photo tray appears below week strip showing uploaded photos with meal captions
+4. Async: Gemini Flash vision identifies foods → match API → insert `food_log` rows with `input_source='image'` + `source_image_url` → delete processing job → dashboard refreshes
+5. Photo tray: tap photo to open detail view — shows photo + list of identified foods with edit (pencil → EditFoodSheet) and delete (trash) per item. "Delete All" removes photo and all linked foods.
+
+#### Key decisions
+- **Async over sync** — photo processing takes 3-5s (vision + match + DB). Async with processing_jobs is more reliable than blocking UI, especially for multi-photo batch uploads.
+- **Separate `processing_jobs` table** over fake food_log rows — avoids polluting calorie totals, suggestions, and frequent food queries with placeholder data.
+- **Supabase Storage** over client-state blob URLs — photos persist across refresh, serve as verification tool for Gemini's identification accuracy.
+- **Full-res to Gemini, thumbnail to storage** — best identification accuracy without storage cost (free tier: 1GB storage, ~3000-5000 photos).
+- **Rotation baked into image** — CSS rotation would only work visually; Gemini and stored thumbnails need the actual rotated pixels.
+
+#### DB migration
+- `migrations/add-image-logging.sql` — adds `processing_jobs` table + RLS, `input_source` + `source_image_url` columns on `food_log`, `food-photos` Storage bucket + policies.
+
+#### Files created
+- `src/components/PhotoReviewSheet.tsx`
+- `src/lib/image-utils.ts`
+- `src/app/api/parse-food-image/route.ts`
+- `migrations/add-image-logging.sql`
+
+#### Files changed
+- `src/app/page.tsx` — photo tray, processing job cards, photo detail view, async processing handler, delete bug fix
+- `src/components/AddFoodSheet.tsx` — camera button, file picker, PhotoReviewSheet integration, removed old photo strip
+- `src/components/FoodCard.tsx` — camera icon for image-sourced entries
+- `src/lib/gemini.ts` — `flashModelVision` config, `PARSE_IMAGE_SYSTEM_PROMPT`
+- `src/lib/supabase-data.ts` — processing jobs CRUD, photo upload, fetchSourceImages with meal type
+- `src/lib/types.ts` — `ProcessingJob` interface, `input_source` + `source_image_url` on `FoodLogEntry`
+- `src/app/share/[token]/ShareDashboard.tsx` — added new required fields to type adapter
+- `src/lib/mock-data.ts` — added new fields to mock entries
+- `supabase-schema.sql` — added `input_source` + `source_image_url` columns

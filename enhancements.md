@@ -39,17 +39,16 @@ Instructions:
 
 ### Nutrition & Data
 
-- Food images — add `image_url` column to `food_library` table. Source options: (1) Gemini web search can return image URLs alongside nutrition data, (2) Unsplash/Pexels API for generic foods, (3) user-uploaded photos. Display on dashboard FoodCards + ConfirmFoodSheet + frequently logged section (currently using initial-letter avatars). Consider storing as Supabase Storage URLs for permanence (external URLs can rot). Will need schema migration + UI updates across FoodCard, ConfirmFoodSheet, AddFoodSheet frequent foods.
+- Food images — `image_url` column added to `food_library`, UI wired (FoodCard, EditFoodSheet, AddFoodSheet tray, share page). Edge Function + pg_cron infrastructure deployed. **Blocker: need a working image search API.** Google Custom Search JSON API deprecated for new customers (Jan 2026). Gemini grounding hallucates image URLs (all fail HEAD validation). Next options to try: Brave Search API (free 2,000/mo, real indexed URLs), Bing Image Search API, or SerpAPI.
 
 ---
 
 ## v2 Goals
 
-> "Did you mean?" for confusing inputs. Flawless frequently logged food logic.
+> Image logging + automatic food detection
 
-- "Did you mean?" disambiguation flow — when Gemini encounters ambiguous terms (e.g., "eggs" could be scrambled, boiled, fried, omelette), show a disambiguation screen with options instead of defaulting. Needs new UI screen + Gemini prompt changes to flag ambiguous items.
-- Meal level summaries of cal + macros — calories done (inline after meal name with dot separator), macros not yet
-- Add Noice (Swiggy Instamart private label) products — 200+ artisanal items across bakery, dairy, snacks, beverages, sweets. No public nutrition data yet; need actual packaging labels from Swiggy app or physical products. Start with top sellers: malai paneer, butter cookies, coconut water, spicy potato chips, banana chips, kaju katli, Punjabi lassi, sourdough bread.
+- ~~user can upload an image of the food, pick the meal it belongs. the app automatically identifies the food and estimates the quantity and logs it (sync if its fast without compromising accuracy, async otherwise)~~ - Completed ✅
+- onboarding flow to set personalised targets based on goals
 
 ---
 
@@ -57,12 +56,20 @@ Instructions:
 
 > Weekly, monthly summaries — overview and guidance for current week/month.
 > Good to have UI/UX improvements
+>
+> "Did you mean?" for confusing inputs. Flawless frequently logged food logic.
+
+
 
 - Weekly/monthly calorie and macro trends (charts) — weekly calorie overview partially done via weekly strip mini rings; full charts still needed
 - History tab — revisit calendar view design (user didn't love v1 calendar)
 - High protein, high carb, high fat, high fibre tags instead of detailed values
 - Give cues to the user during on what macros to focus on
 - Loading states animations/visuals + other "cool" things
+- "Did you mean?" disambiguation flow — when Gemini encounters ambiguous terms (e.g., "eggs" could be scrambled, boiled, fried, omelette), show a disambiguation screen with options instead of defaulting. Needs new UI screen + Gemini prompt changes to flag ambiguous items.
+- Meal level summaries of cal + macros — calories done (inline after meal name with dot separator), macros not yet
+- Add Noice (Swiggy Instamart private label) products — 200+ artisanal items across bakery, dairy, snacks, beverages, sweets. No public nutrition data yet; need actual packaging labels from Swiggy app or physical products. Start with top sellers: malai paneer, butter cookies, coconut water, spicy potato chips, banana chips, kaju katli, Punjabi lassi, sourdough bread.
+- Dynamic goal setting: change calorie and macro targets for remaining days based on week-till-date logs
 
 ---
 
