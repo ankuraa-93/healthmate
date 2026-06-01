@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect, TouchEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw, X, Trash2 } from 'lucide-react';
+import { RefreshCw, X, Trash2, AlertCircle, ChevronDown } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
 import CalorieRing from '@/components/CalorieRing';
 import MacroGrid from '@/components/MacroGrid';
@@ -14,10 +14,11 @@ import EditFoodSheet from '@/components/EditFoodSheet';
 import Toast from '@/components/Toast';
 import WeekStrip from '@/components/WeekStrip';
 import { useAuth } from '@/components/AuthProvider';
-import { fetchFoodLogs, fetchProfile, updateFoodLog, deleteFoodLog, insertFoodLog, fetchSuggestions, fetchWeeklyCalories, getOrCreateShareLink, SuggestedFood, insertProcessingJob, deleteProcessingJob, fetchProcessingJobs, uploadFoodPhoto, fetchSourceImages, SourceImage } from '@/lib/supabase-data';
+import { fetchFoodLogs, fetchProfile, updateFoodLog, deleteFoodLog, insertFoodLog, fetchSuggestions, fetchWeeklyCalories, getOrCreateShareLink, SuggestedFood, insertProcessingJob, deleteProcessingJob, updateProcessingJob, fetchProcessingJobs, uploadFoodPhoto, fetchSourceImages, SourceImage } from '@/lib/supabase-data';
 import SuggestedFoods from '@/components/SuggestedFoods';
 import { FoodLogEntry, Profile, ProcessingJob } from '@/lib/types';
 import { applyRotation, ProcessedImage } from '@/lib/image-utils';
+import { scaleNutritionFromEntry } from '@/lib/nutrition';
 
 function formatDate(date: Date): string {
   const y = date.getFullYear();
@@ -65,8 +66,12 @@ export default function DashboardPage() {
     return new Set<string>();
   });
   const [processingJobs, setProcessingJobs] = useState<ProcessingJob[]>([]);
+  const [processingProgress, setProcessingProgress] = useState<Record<string, number>>({});
+  const [confirmDeleteJob, setConfirmDeleteJob] = useState<ProcessingJob | null>(null);
   const [sourceImages, setSourceImages] = useState<SourceImage[]>([]);
   const [expandedPhoto, setExpandedPhoto] = useState<SourceImage | null>(null);
+  const [expandedPhotoFoodIdx, setExpandedPhotoFoodIdx] = useState<number | null>(null);
+  const [expandedJob, setExpandedJob] = useState<ProcessingJob | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<FoodLogEntry | null>(null);
   const [toast, setToast] = useState<{
@@ -84,6 +89,7 @@ export default function DashboardPage() {
   const touchStartX = useRef(0);
   const swipeDirection = useRef<'x' | 'y' | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const processingDataRef = useRef<Map<string, { originalBase64: string; mimeType: string; thumbnailUrl: string }>>(new Map());
 
   const handleTouchStart = (e: TouchEvent) => {
     touchStartY.current = e.touches[0].clientY;
@@ -163,6 +169,24 @@ export default function DashboardPage() {
     fetchProcessingJobs(user.id, date).then(setProcessingJobs);
     fetchSourceImages(user.id, date).then(setSourceImages);
   }, [user, selectedDate]);
+
+  useEffect(() => {
+    const activeIds = processingJobs.filter(j => j.status === 'processing').map(j => j.id);
+    if (activeIds.length === 0) return;
+    const interval = setInterval(() => {
+      setProcessingProgress(prev => {
+        const next = { ...prev };
+        for (const id of activeIds) {
+          const current = next[id] ?? 0;
+          if (current >= 92) continue;
+          const rate = current < 30 ? 8 + Math.random() * 12 : current < 60 ? 4 + Math.random() * 6 : 1 + Math.random() * 3;
+          next[id] = Math.min(current + rate, 92);
+        }
+        return next;
+      });
+    }, 600);
+    return () => clearInterval(interval);
+  }, [processingJobs]);
 
   const refreshLogs = useCallback(() => {
     if (!user) return;
@@ -320,11 +344,115 @@ export default function DashboardPage() {
     }
   }, [user, selectedDate, showToast]);
 
+  const processOnePhoto = useCallback(async (
+    job: ProcessingJob,
+    imageData: { originalBase64: string; mimeType: string; thumbnailUrl: string },
+    mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack',
+    date: string,
+    userId: string,
+  ) => {
+    const parseRes = await fetch('/api/parse-food-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        image: imageData.originalBase64,
+        mimeType: imageData.mimeType,
+        mealType,
+        currentHour: new Date().getHours(),
+      }),
+    });
+    if (!parseRes.ok) throw new Error((await parseRes.json().catch(() => ({}))).error || 'Image parse failed');
+    const parsed = await parseRes.json();
+
+    if (!parsed.items || parsed.items.length === 0) {
+      showToast('No food found in photo');
+      await deleteProcessingJob(job.id);
+      setProcessingJobs(prev => prev.filter(j => j.id !== job.id));
+      processingDataRef.current.delete(job.id);
+      return;
+    }
+
+    const matchRes = await fetch('/api/match-food', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: parsed.items }),
+    });
+    if (!matchRes.ok) throw new Error((await matchRes.json().catch(() => ({}))).error || 'Match failed');
+    const matched = await matchRes.json();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const insertPromises = matched.items.map(async (item: any) => {
+      const ratio = item.quantity_g / 100;
+      return insertFoodLog({
+        user_id: userId,
+        food_library_id: item.matched_library_id || null,
+        food_name: item.matched_library_name || item.name,
+        quantity_g: item.quantity_g,
+        calories: Math.round(item.calories_per_100g * ratio),
+        protein: Math.round(item.protein_per_100g * ratio),
+        carbs: Math.round(item.carbs_per_100g * ratio),
+        fat: Math.round(item.fat_per_100g * ratio),
+        fibre: Math.round(item.fibre_per_100g * ratio),
+        meal_type: mealType,
+        logged_date: date,
+        status: 'confirmed',
+        unit: item.unit || 'g',
+        input_source: 'image',
+        source_image_url: imageData.thumbnailUrl,
+      });
+    });
+
+    const results = await Promise.all(insertPromises);
+    const inserted = results.filter(Boolean) as FoodLogEntry[];
+
+    await deleteProcessingJob(job.id);
+    setProcessingJobs(prev => prev.filter(j => j.id !== job.id));
+    setProcessingProgress(prev => { const next = { ...prev }; delete next[job.id]; return next; });
+    processingDataRef.current.delete(job.id);
+    setLogs(prev => [...prev, ...inserted.map(e => ({ ...e, image_url: null }))]);
+    setSourceImages(prev => {
+      const exists = prev.find(s => s.url === imageData.thumbnailUrl);
+      if (exists) return prev;
+      return [...prev, { url: imageData.thumbnailUrl, mealType, foodIds: inserted.map(e => e.id) }];
+    });
+    showToast(`${inserted.length} food${inserted.length > 1 ? 's' : ''} logged from photo ✓`);
+  }, [showToast]);
+
+  const handleRetryProcessingJob = useCallback(async (job: ProcessingJob) => {
+    const cached = processingDataRef.current.get(job.id);
+    if (!cached) {
+      showToast('Photo data expired — please re-upload');
+      await deleteProcessingJob(job.id);
+      setProcessingJobs(prev => prev.filter(j => j.id !== job.id));
+      return;
+    }
+
+    await updateProcessingJob(job.id, { status: 'processing' });
+    setProcessingJobs(prev => prev.map(j => j.id === job.id ? { ...j, status: 'processing' } : j));
+
+    try {
+      await processOnePhoto(job, cached, job.meal_type, job.logged_date, job.user_id);
+    } catch (err) {
+      console.error('Retry processing error:', err);
+      await updateProcessingJob(job.id, { status: 'failed' });
+      setProcessingJobs(prev => prev.map(j => j.id === job.id ? { ...j, status: 'failed' } : j));
+      showToast('Retry failed — try again later');
+    }
+  }, [processOnePhoto, showToast]);
+
+  const handleDeleteProcessingJob = useCallback(async (job: ProcessingJob) => {
+    setConfirmDeleteJob(null);
+    await deleteProcessingJob(job.id);
+    setProcessingJobs(prev => prev.filter(j => j.id !== job.id));
+    setProcessingProgress(prev => { const next = { ...prev }; delete next[job.id]; return next; });
+    processingDataRef.current.delete(job.id);
+    showToast('Photo removed');
+  }, [showToast]);
+
   const handlePhotosSubmitted = useCallback(async (photos: ReviewPhoto[]) => {
     if (!user) return;
     const date = formatDate(selectedDate);
 
-    // Upload all photos and create processing jobs first (fast)
     const jobs: { photo: ReviewPhoto; rotated: ProcessedImage; thumbnailUrl: string; job: ProcessingJob }[] = [];
     for (const photo of photos) {
       const rotated = await applyRotation(photo.processedImage, photo.rotation);
@@ -346,83 +474,28 @@ export default function DashboardPage() {
         continue;
       }
 
+      processingDataRef.current.set(job.id, {
+        originalBase64: rotated.originalBase64,
+        mimeType: rotated.mimeType,
+        thumbnailUrl,
+      });
       setProcessingJobs(prev => [...prev, job]);
       jobs.push({ photo, rotated, thumbnailUrl, job });
     }
 
-    // Process photos sequentially to avoid Gemini rate limits
     for (const { photo, rotated, thumbnailUrl, job } of jobs) {
       try {
-        const parseRes = await fetch('/api/parse-food-image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            image: rotated.originalBase64,
-            mimeType: rotated.mimeType,
-            mealType: photo.mealType,
-            currentHour: new Date().getHours(),
-          }),
-        });
-        if (!parseRes.ok) throw new Error((await parseRes.json().catch(() => ({}))).error || 'Image parse failed');
-        const parsed = await parseRes.json();
-
-        if (!parsed.items || parsed.items.length === 0) {
-          showToast('No food found in photo');
-          await deleteProcessingJob(job.id);
-          setProcessingJobs(prev => prev.filter(j => j.id !== job.id));
-          URL.revokeObjectURL(photo.processedImage.thumbnailUrl);
-          continue;
-        }
-
-        const matchRes = await fetch('/api/match-food', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ items: parsed.items }),
-        });
-        if (!matchRes.ok) throw new Error((await matchRes.json().catch(() => ({}))).error || 'Match failed');
-        const matched = await matchRes.json();
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const insertPromises = matched.items.map(async (item: any) => {
-          const ratio = item.quantity_g / 100;
-          return insertFoodLog({
-            user_id: user.id,
-            food_library_id: item.matched_library_id || null,
-            food_name: item.matched_library_name || item.name,
-            quantity_g: item.quantity_g,
-            calories: Math.round(item.calories_per_100g * ratio),
-            protein: Math.round(item.protein_per_100g * ratio),
-            carbs: Math.round(item.carbs_per_100g * ratio),
-            fat: Math.round(item.fat_per_100g * ratio),
-            fibre: Math.round(item.fibre_per_100g * ratio),
-            meal_type: photo.mealType,
-            logged_date: date,
-            status: 'confirmed',
-            unit: item.unit || 'g',
-            input_source: 'image',
-            source_image_url: thumbnailUrl,
-          });
-        });
-
-        const results = await Promise.all(insertPromises);
-        const inserted = results.filter(Boolean) as FoodLogEntry[];
-
-        await deleteProcessingJob(job.id);
-        setProcessingJobs(prev => prev.filter(j => j.id !== job.id));
-        setLogs(prev => [...prev, ...inserted.map(e => ({ ...e, image_url: null }))]);
-        setSourceImages(prev => {
-          const exists = prev.find(s => s.url === thumbnailUrl);
-          if (exists) return prev;
-          return [...prev, { url: thumbnailUrl, mealType: photo.mealType, foodIds: inserted.map(e => e.id) }];
-        });
-        showToast(`${inserted.length} food${inserted.length > 1 ? 's' : ''} logged from photo ✓`);
+        await processOnePhoto(job, { originalBase64: rotated.originalBase64, mimeType: rotated.mimeType, thumbnailUrl }, photo.mealType, date, user.id);
       } catch (err) {
         console.error('Photo processing error:', err);
+        await updateProcessingJob(job.id, { status: 'failed' });
+        setProcessingJobs(prev => prev.map(j => j.id === job.id ? { ...j, status: 'failed' } : j));
+        showToast('Photo analysis failed — tap to retry');
       }
 
       URL.revokeObjectURL(photo.processedImage.thumbnailUrl);
     }
-  }, [user, selectedDate, showToast]);
+  }, [user, selectedDate, showToast, processOnePhoto]);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -500,8 +573,8 @@ export default function DashboardPage() {
 
         {/* Photo tray */}
         {(sourceImages.length > 0 || processingJobs.length > 0) && (
-          <div className="mb-3">
-            <div className="flex gap-2.5 overflow-x-auto scrollbar-none pb-1">
+          <div className="mb-3 -mr-4">
+            <div className="flex gap-2.5 overflow-x-auto scrollbar-none pb-1 pr-4">
               {sourceImages.map((img, idx) => (
                 <motion.button
                   key={img.url}
@@ -510,33 +583,62 @@ export default function DashboardPage() {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: idx * 0.05 }}
                   whileTap={{ scale: 0.9 }}
-                  onClick={() => setExpandedPhoto(img)}
+                  onClick={() => { setExpandedPhotoFoodIdx(null); setExpandedPhoto(img); }}
                 >
-                  <div className="w-14 h-14 rounded-xl overflow-hidden">
+                  <div className="w-28 h-28 rounded-xl overflow-hidden">
                     <img src={img.url} alt="Food photo" className="w-full h-full object-cover" />
                   </div>
-                  <span className="text-[10px] font-medium text-text-tertiary capitalize">{img.mealType}</span>
+                  <span className="text-[11px] font-medium text-text-tertiary capitalize">{img.mealType}</span>
                 </motion.button>
               ))}
               {processingJobs.map(job => (
-                <div key={job.id} className="flex-shrink-0 flex flex-col items-center gap-1">
-                  <motion.div
-                    className="w-14 h-14 rounded-xl overflow-hidden relative"
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                <motion.div
+                  key={job.id}
+                  className="flex-shrink-0 flex flex-col items-center gap-1 relative"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                >
+                  <motion.button
+                    className="w-28 h-28 rounded-xl overflow-hidden relative bg-transparent border-none p-0 cursor-pointer"
+                    onClick={() => setExpandedJob(job)}
+                    whileTap={{ scale: 0.95 }}
                   >
-                    <img src={job.image_url} alt="Processing" className="w-full h-full object-cover" />
+                    <img src={job.image_url} alt={job.status === 'failed' ? 'Failed' : 'Processing'} className="w-full h-full object-cover" />
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                      <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                      >
-                        <RefreshCw size={16} className="text-white" />
-                      </motion.div>
+                      {job.status === 'failed' ? (
+                        <AlertCircle size={24} className="text-red-400" />
+                      ) : (
+                        <svg width="22" height="22" viewBox="0 0 44 44">
+                          <circle cx="22" cy="22" r="18" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="2" />
+                          <path
+                            d={(() => {
+                              const pct = (processingProgress[job.id] ?? 0) / 100;
+                              if (pct <= 0) return '';
+                              const r = 18;
+                              const angle = pct * 360;
+                              const rad = (angle - 90) * Math.PI / 180;
+                              const x = 22 + r * Math.cos(rad);
+                              const y = 22 + r * Math.sin(rad);
+                              const large = angle > 180 ? 1 : 0;
+                              return `M22,22 L22,4 A${r},${r} 0 ${large},1 ${x},${y} Z`;
+                            })()}
+                            fill="rgba(255,255,255,0.85)"
+                          />
+                        </svg>
+                      )}
                     </div>
-                  </motion.div>
-                  <span className="text-[10px] font-medium text-text-tertiary capitalize">{job.meal_type}</span>
-                </div>
+                  </motion.button>
+                  <motion.button
+                    className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-black/70 border border-white/20 flex items-center justify-center cursor-pointer z-10"
+                    onClick={() => setConfirmDeleteJob(job)}
+                    whileTap={{ scale: 0.85 }}
+                  >
+                    <X size={12} className="text-white" />
+                  </motion.button>
+                  <span className={`text-[11px] font-medium capitalize ${job.status === 'failed' ? 'text-red-400' : 'text-text-tertiary'}`}>
+                    {job.status === 'failed' ? 'Failed' : job.meal_type}
+                  </span>
+                </motion.div>
               ))}
             </div>
           </div>
@@ -602,32 +704,39 @@ export default function DashboardPage() {
                         );
                       })}
                     </AnimatePresence>
-                    {/* Processing job cards */}
-                    {mealJobs.map(job => (
-                      <motion.div
-                        key={job.id}
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                      >
-                        {(entries.length > 0) && <div className="h-px bg-bg-tertiary mx-3.5" />}
-                        <div className="p-3 px-3.5 flex items-center gap-3">
-                          <div className="w-11 h-11 rounded-[10px] overflow-hidden flex-shrink-0 relative">
-                            <img src={job.image_url} alt="Analyzing" className="w-full h-full object-cover" />
-                            <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                              <motion.div
-                                animate={{ rotate: 360 }}
-                                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                              >
-                                <RefreshCw size={12} className="text-white" />
-                              </motion.div>
-                            </div>
+                    {/* Processing/failed status in meal section */}
+                    {(() => {
+                      const processingCount = mealJobs.filter(j => j.status === 'processing').length;
+                      const failedCount = mealJobs.filter(j => j.status === 'failed').length;
+                      if (processingCount === 0 && failedCount === 0) return null;
+                      return (
+                        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+                          {entries.length > 0 && <div className="h-px bg-bg-tertiary mx-3.5" />}
+                          <div className="p-3 px-3.5 flex flex-col gap-1.5">
+                            {processingCount > 0 && (
+                              <div className="flex items-center gap-2.5">
+                                <motion.div
+                                  className="w-2 h-2 rounded-full bg-accent"
+                                  animate={{ opacity: [1, 0.4, 1] }}
+                                  transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                                />
+                                <span className="text-[14px] font-medium text-text-secondary">
+                                  Identifying foods from {processingCount} photo{processingCount > 1 ? 's' : ''}...
+                                </span>
+                              </div>
+                            )}
+                            {failedCount > 0 && (
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-2 h-2 rounded-full bg-destructive" />
+                                <span className="text-[14px] font-medium text-text-secondary">
+                                  {failedCount} photo{failedCount > 1 ? 's' : ''} failed — tap in tray to retry
+                                </span>
+                              </div>
+                            )}
                           </div>
-                          <div className="flex-1">
-                            <span className="text-[14px] font-medium text-text-secondary">Identifying foods...</span>
-                          </div>
-                        </div>
-                      </motion.div>
-                    ))}
+                        </motion.div>
+                      );
+                    })()}
                     <AnimatePresence>
                       {mealSuggestions.length > 0 && (
                         <motion.div
@@ -694,7 +803,7 @@ export default function DashboardPage() {
       <AnimatePresence>
         {expandedPhoto && (
           <motion.div
-            className="fixed inset-0 bg-black/95 z-50 flex flex-col"
+            className="fixed inset-0 bg-black z-50 flex flex-col"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -743,58 +852,176 @@ export default function DashboardPage() {
               <div className="text-white/50 text-[12px] font-medium uppercase tracking-wide mb-2">
                 Identified foods ({expandedPhoto.foodIds.length})
               </div>
-              <div className="rounded-xl overflow-hidden" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
+              <div className="rounded-xl overflow-hidden" style={{ backgroundColor: '#1c1c1e' }}>
                 {expandedPhoto.foodIds.map((foodId, idx) => {
                   const entry = logs.find(l => l.id === foodId);
                   if (!entry) return null;
                   const unitLabel = entry.unit === 'ml' ? 'ml' : 'g';
+                  const isExpanded = expandedPhotoFoodIdx === idx;
                   return (
                     <div key={foodId}>
                       {idx > 0 && <div className="h-px bg-white/10 mx-3.5" />}
-                      <div className="p-3 px-3.5 flex items-center gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[14px] font-medium text-white leading-snug">{entry.food_name}</div>
-                          <div className="flex items-baseline justify-between gap-2 mt-px text-[13px] text-white/50">
-                            <span>{entry.quantity_g}{unitLabel} &middot; {entry.calories} cal</span>
-                            <span>P:{entry.protein} C:{entry.carbs} F:{entry.fat} Fi:{entry.fibre}</span>
+                      <div
+                        className="p-3 px-3.5 cursor-pointer"
+                        onClick={() => setExpandedPhotoFoodIdx(prev => prev === idx ? null : idx)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[14px] font-medium text-white leading-snug">{entry.food_name}</div>
+                            <div className="flex items-baseline justify-between gap-2 mt-px text-[13px] text-white/50">
+                              <span>{entry.quantity_g}{unitLabel} &middot; {entry.calories} cal</span>
+                              <span>P:{entry.protein} C:{entry.carbs} F:{entry.fat} Fi:{entry.fibre}</span>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex gap-1.5 flex-shrink-0">
-                          <motion.button
-                            className="w-8 h-8 rounded-lg bg-white/10 border-none flex items-center justify-center cursor-pointer"
-                            onClick={() => { setExpandedPhoto(null); setEditingEntry(entry); }}
-                            whileTap={{ scale: 0.9 }}
+                          <motion.div
+                            className="flex-shrink-0 text-white/40"
+                            animate={{ rotate: isExpanded ? 180 : 0 }}
+                            transition={{ duration: 0.25 }}
                           >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
-                            </svg>
-                          </motion.button>
-                          <motion.button
-                            className="w-8 h-8 rounded-lg bg-white/10 border-none flex items-center justify-center cursor-pointer"
-                            onClick={async () => {
-                              await deleteFoodLog(foodId);
-                              setLogs(prev => prev.filter(l => l.id !== foodId));
-                              setExpandedPhoto(prev => {
-                                if (!prev) return null;
-                                const newIds = prev.foodIds.filter(id => id !== foodId);
-                                if (newIds.length === 0) return null;
-                                return { ...prev, foodIds: newIds };
-                              });
-                              setSourceImages(prev => prev.map(s =>
-                                s.url === expandedPhoto.url ? { ...s, foodIds: s.foodIds.filter(id => id !== foodId) } : s
-                              ).filter(s => s.foodIds.length > 0));
-                              showToast(`${entry.food_name} deleted`);
-                            }}
-                            whileTap={{ scale: 0.9 }}
-                          >
-                            <Trash2 size={14} className="text-red-400" />
-                          </motion.button>
+                            <ChevronDown size={14} />
+                          </motion.div>
                         </div>
+                        <AnimatePresence>
+                          {isExpanded && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.25 }}
+                              className="overflow-hidden"
+                              onClick={e => e.stopPropagation()}
+                            >
+                              <div className="mt-3 pt-2.5 border-t border-white/10">
+                                <div className="flex items-center gap-2 mb-2.5">
+                                  <div className="flex-1 flex items-center bg-white/10 rounded-xl px-3.5 py-2.5">
+                                    <input
+                                      type="text"
+                                      inputMode="numeric"
+                                      className="flex-1 bg-transparent border-none text-[17px] font-medium text-white text-right outline-none w-0"
+                                      value={entry.quantity_g}
+                                      onChange={async (e) => {
+                                        const val = parseInt(e.target.value) || 0;
+                                        const qty = Math.min(Math.max(val, 1), 9999);
+                                        const nutrition = scaleNutritionFromEntry(qty, entry);
+                                        const updated = await updateFoodLog(entry.id, { quantity_g: qty, ...nutrition });
+                                        if (updated) setLogs(prev => prev.map(l => l.id === entry.id ? updated : l));
+                                      }}
+                                    />
+                                    <span className="text-[15px] text-white/50 ml-1.5">{unitLabel}</span>
+                                  </div>
+                                  <motion.button
+                                    className="w-11 h-11 rounded-xl bg-white/10 border-none flex items-center justify-center cursor-pointer flex-shrink-0"
+                                    onClick={async () => {
+                                      await deleteFoodLog(foodId);
+                                      setLogs(prev => prev.filter(l => l.id !== foodId));
+                                      setExpandedPhotoFoodIdx(null);
+                                      setExpandedPhoto(prev => {
+                                        if (!prev) return null;
+                                        const newIds = prev.foodIds.filter(id => id !== foodId);
+                                        if (newIds.length === 0) return null;
+                                        return { ...prev, foodIds: newIds };
+                                      });
+                                      setSourceImages(prev => prev.map(s =>
+                                        s.url === expandedPhoto.url ? { ...s, foodIds: s.foodIds.filter(id => id !== foodId) } : s
+                                      ).filter(s => s.foodIds.length > 0));
+                                      showToast(`${entry.food_name} deleted`);
+                                    }}
+                                    whileTap={{ scale: 0.9 }}
+                                  >
+                                    <Trash2 size={18} className="text-red-400" />
+                                  </motion.button>
+                                </div>
+                                <div className="flex gap-2">
+                                  {[-50, -10, 10, 50].map(delta => (
+                                    <motion.button
+                                      key={delta}
+                                      className="flex-1 py-1.5 bg-white/10 border-none rounded-full text-[13px] font-medium text-white/70 cursor-pointer"
+                                      onClick={async () => {
+                                        const qty = Math.min(Math.max(entry.quantity_g + delta, 1), 9999);
+                                        const nutrition = scaleNutritionFromEntry(qty, entry);
+                                        const updated = await updateFoodLog(entry.id, { quantity_g: qty, ...nutrition });
+                                        if (updated) setLogs(prev => prev.map(l => l.id === entry.id ? updated : l));
+                                      }}
+                                      whileTap={{ scale: 0.95 }}
+                                    >
+                                      {delta > 0 ? '+' : ''}{delta}{unitLabel}
+                                    </motion.button>
+                                  ))}
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
                     </div>
                   );
                 })}
               </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Processing photo detail view */}
+      <AnimatePresence>
+        {expandedJob && (
+          <motion.div
+            className="fixed inset-0 bg-black z-50 flex flex-col"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="flex items-center justify-between px-4 pt-[max(env(safe-area-inset-top),12px)] pb-2">
+              <motion.button
+                className="w-9 h-9 rounded-full bg-white/15 border-none flex items-center justify-center cursor-pointer"
+                onClick={() => setExpandedJob(null)}
+                whileTap={{ scale: 0.9 }}
+              >
+                <X size={18} className="text-white" />
+              </motion.button>
+              <span className="text-white/70 text-[14px] font-medium capitalize">{expandedJob.meal_type}</span>
+              <motion.button
+                className="text-[14px] font-medium text-red-400 bg-transparent border-none cursor-pointer px-2 py-1"
+                onClick={() => { setExpandedJob(null); setConfirmDeleteJob(expandedJob); }}
+                whileTap={{ scale: 0.95 }}
+              >
+                Delete
+              </motion.button>
+            </div>
+            <div className="px-4 pb-3">
+              <motion.img
+                src={expandedJob.image_url}
+                alt="Processing photo"
+                className="w-full rounded-xl object-contain max-h-[40vh]"
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+              />
+            </div>
+            <div className="flex-1 flex flex-col items-center justify-center px-4">
+              {expandedJob.status === 'failed' ? (
+                <>
+                  <AlertCircle size={32} className="text-red-400 mb-3" />
+                  <p className="text-[16px] font-medium text-white mb-1">Analysis failed</p>
+                  <p className="text-[14px] text-white/50 text-center mb-4">Could not identify foods in this photo</p>
+                  <motion.button
+                    className="px-6 py-2.5 rounded-xl bg-accent border-none text-[14px] font-medium text-white cursor-pointer"
+                    onClick={() => { setExpandedJob(null); handleRetryProcessingJob(expandedJob); }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    Retry
+                  </motion.button>
+                </>
+              ) : (
+                <>
+                  <motion.div
+                    className="w-3 h-3 rounded-full bg-accent mb-3"
+                    animate={{ opacity: [1, 0.3, 1] }}
+                    transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                  />
+                  <p className="text-[16px] font-medium text-white">Identifying foods...</p>
+                  <p className="text-[14px] text-white/50 mt-1">This may take a few seconds</p>
+                </>
+              )}
             </div>
           </motion.div>
         )}
@@ -806,6 +1033,58 @@ export default function DashboardPage() {
         onSave={handleEditSave}
         onDelete={handleEditDelete}
       />
+
+      {/* Confirmation dialog for deleting/retrying processing jobs */}
+      <AnimatePresence>
+        {confirmDeleteJob && (
+          <motion.div
+            className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center px-8"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setConfirmDeleteJob(null)}
+          >
+            <motion.div
+              className="bg-bg-primary rounded-2xl p-5 w-full max-w-xs"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+            >
+              <p className="text-[16px] font-semibold text-center mb-1">
+                {confirmDeleteJob.status === 'failed' ? 'Delete failed photo?' : 'Cancel processing?'}
+              </p>
+              <p className="text-[14px] text-text-secondary text-center mb-5">
+                {confirmDeleteJob.status === 'failed'
+                  ? 'This photo could not be analyzed. You can retry or remove it.'
+                  : 'This photo is still being analyzed.'}
+              </p>
+              <div className="flex gap-3">
+                <button
+                  className="flex-1 py-2.5 rounded-xl bg-bg-tertiary border-none text-[14px] font-medium text-text-primary cursor-pointer"
+                  onClick={() => setConfirmDeleteJob(null)}
+                >
+                  Cancel
+                </button>
+                {confirmDeleteJob.status === 'failed' && (
+                  <button
+                    className="flex-1 py-2.5 rounded-xl bg-accent border-none text-[14px] font-medium text-white cursor-pointer"
+                    onClick={() => { setConfirmDeleteJob(null); handleRetryProcessingJob(confirmDeleteJob); }}
+                  >
+                    Retry
+                  </button>
+                )}
+                <button
+                  className="flex-1 py-2.5 rounded-xl bg-destructive border-none text-[14px] font-medium text-white cursor-pointer"
+                  onClick={() => handleDeleteProcessingJob(confirmDeleteJob)}
+                >
+                  Delete
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <Toast message={toast.message} visible={toast.visible} action={toast.action} />
     </div>

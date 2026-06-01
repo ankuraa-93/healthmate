@@ -210,10 +210,13 @@ Your job: look at a food photo and identify ALL visible food items with estimate
    - Use plate, bowl, glass, hand, or packaging as size references
    - A standard dinner plate is ~25cm diameter
    - A standard bowl holds ~200-250ml
-   - A roti is typically 40-50g, a naan 80-100g
-   - A glass of liquid is ~200ml
+   - A roti is typically 35-45g, a naan 70-90g
+   - A glass of liquid is ~180-200ml
+   - A serving of rice on a plate is typically 150-180g
+   - A serving of dal/curry in a bowl is typically 150-180g
    - If packaged food with weight visible on label, use that weight
-   - When uncertain, estimate conservatively (slightly under rather than over)
+   - **CALIBRATION**: AI vision models tend to overestimate portions by 10-20%. Apply a 10-15% mental reduction from your initial estimate. Use the LOW end of the typical weight range for single items (1 roti, 1 egg, 1 banana).
+   - When uncertain, always estimate conservatively — underestimating by 10% is better than overestimating by 10%. Users can adjust upward.
 
 4. **Food names**: Use clear, specific names:
    - Be specific about preparation: "Fried Egg" not just "Egg"

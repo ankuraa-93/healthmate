@@ -713,3 +713,55 @@ Full implementation of photo-based food logging with async processing.
 - `src/app/share/[token]/ShareDashboard.tsx` — added new required fields to type adapter
 - `src/lib/mock-data.ts` — added new fields to mock entries
 - `supabase-schema.sql` — added `input_source` + `source_image_url` columns
+
+## Session: 2026-06-01 — v2 image processing polish (5 items)
+
+### Bug fix
+- **Gemini API key on Vercel** — old key was revoked by Google, production text parsing was broken (all submissions returned "Failed to parse"). Updated `GEMINI_API_KEY` env var on Vercel and redeployed.
+
+### v2 enhancements completed (5 of 7 pending items)
+
+#### 1. Resilient image processing
+- Extracted `processOnePhoto()` as reusable function from `handlePhotosSubmitted` — used by both initial processing and retry
+- Failed Gemini calls now mark jobs as `status: 'failed'` instead of silently swallowing errors
+- Added `updateProcessingJob()` to supabase-data.ts
+- `fetchProcessingJobs` now fetches both `'processing'` and `'failed'` jobs
+- Added `processingDataRef` (useRef Map) to cache original base64 data per job for retry
+- `handleRetryProcessingJob` re-runs processing from cached data; shows "re-upload" toast if cache expired (page refreshed)
+
+#### 2. Delete processing/failed photo
+- Processing/failed photos in tray are tappable — opens photo detail view (same as completed photos but with status message)
+- Small X button on top-right corner of tray thumbnail triggers delete confirmation dialog
+- Confirmation dialog: "Delete failed photo?" / "Cancel processing?" with Cancel, Retry (failed only), Delete buttons
+- Processing photo detail view: shows photo + "Identifying foods..." or "Analysis failed" with Retry button
+
+#### 3. Processing state UX
+- **Photo tray**: replaced spinning RefreshCw with iOS-style pie loading indicator (SVG arc that fills based on simulated progress). Failed jobs show red AlertCircle icon
+- **Simulated progress**: useEffect with interval, random increments (fast at start, slows down), caps at 92% until job completes
+- **Meal sections**: removed per-job thumbnail cards. Replaced with aggregated text: pulsing green dot + "Identifying foods from X photos..." for processing, red dot + "X photos failed" for failures
+- Photo tray thumbnails doubled in size (w-14 → w-28, 56px → 112px)
+- Peeking photos: tray extends to right screen edge (`-mr-4` + `pr-4` on scroll container) so photos clip at edge, hinting at more content
+
+#### 4. Gemini quantity overestimation
+- Updated `PARSE_IMAGE_SYSTEM_PROMPT` rule 3 with calibration guidance:
+  - Explicit instruction: "AI vision models overestimate by 10-20%, apply 10-15% mental reduction"
+  - Reduced reference quantities: roti 35-45g (was 40-50g), rice/dal servings 150-180g (was 200g+)
+  - "Use LOW end of typical weight range for single items"
+
+#### 5. Inline food editing on photo view
+- Food items in expanded photo detail view now expand inline on tap (chevron toggle)
+- Expanded area: quantity input (dark-themed), ±10/±50g adjustment pills, trash button
+- Uses `scaleNutritionFromEntry` for proportional nutrition recalculation
+- Removed old edit button that closed photo view to open separate EditFoodSheet
+- Photo stays visible while editing
+
+### Other UI fixes
+- Photo detail view: solid black background + solid `#1c1c1e` food card background (was semi-transparent, screen behind was visible)
+- Added "Dev Workflow" section to CLAUDE.md: always rebuild and restart server after code changes
+
+### Files changed
+- `src/app/page.tsx` — all 5 features: processOnePhoto extraction, retry/delete/confirm handlers, pie loading indicator, tray size + peeking, inline editing, processing state UX
+- `src/lib/supabase-data.ts` — `updateProcessingJob`, `fetchProcessingJobs` includes failed
+- `src/lib/gemini.ts` — vision prompt calibration
+- `CLAUDE.md` — dev workflow instruction
+- `enhancements.md` — marked 5 items complete

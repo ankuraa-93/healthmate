@@ -49,11 +49,12 @@ Instructions:
 
 - ~~user can upload an image of the food, pick the meal it belongs. the app automatically identifies the food and estimates the quantity and logs it (sync if its fast without compromising accuracy, async otherwise)~~ - Completed ✅
 - onboarding flow to set personalised targets based on goals
-- Processing state UX — replace spinning loader on processing photos with a static indicator (less distracting). Remove photo from meal section during processing; keep it only in photo tray. Show "Identifying foods from X photos" text in meal section instead.
-- Option to delete a processing/failed photo from the photo tray with an "are you sure?" confirmation prompt
-- Inline food editing on photo view — when user taps a food item in the processed photo view, expand the card inline (chevron + edit controls like the log food flow) instead of opening a separate bottom sheet. Keeps the photo in view while editing.
-- Gemini quantity overestimation — image-based estimates tend to be 10-20% high. Add calibration guidance in the vision system prompt to lean toward conservative/lower-bound portion estimates rather than applying a blanket multiplier.
-- Resilient image processing — handle Gemini failures (503 overload, rate limits, transient errors) gracefully. Options: fallback to a secondary model (e.g. gemini-2.0-flash), or a retry cron job that picks up failed/stuck processing jobs and reprocesses them on a schedule. Goal: no photo should silently fail — user should always get results, even if delayed.
+- improve signup/in experience: single textbox to enter email which figures new vs existing user. also, sign in automatically after signup.
+- ~~Processing state UX — replace spinning loader on processing photos with a static indicator (less distracting). Remove photo from meal section during processing; keep it only in photo tray. Show "Identifying foods from X photos" text in meal section instead.~~ - Completed ✅
+- ~~Option to delete a processing/failed photo from the photo tray with an "are you sure?" confirmation prompt~~ - Completed ✅
+- ~~Inline food editing on photo view — when user taps a food item in the processed photo view, expand the card inline (chevron + edit controls like the log food flow) instead of opening a separate bottom sheet. Keeps the photo in view while editing.~~ - Completed ✅
+- ~~Gemini quantity overestimation — image-based estimates tend to be 10-20% high. Add calibration guidance in the vision system prompt to lean toward conservative/lower-bound portion estimates rather than applying a blanket multiplier.~~ - Completed ✅
+- ~~Resilient image processing — handle Gemini failures (503 overload, rate limits, transient errors) gracefully. Options: fallback to a secondary model (e.g. gemini-2.0-flash), or a retry cron job that picks up failed/stuck processing jobs and reprocesses them on a schedule. Goal: no photo should silently fail — user should always get results, even if delayed.~~ - Completed ✅
 
 ---
 
@@ -64,8 +65,6 @@ Instructions:
 >
 > "Did you mean?" for confusing inputs. Flawless frequently logged food logic.
 
-
-
 - Weekly/monthly calorie and macro trends (charts) — weekly calorie overview partially done via weekly strip mini rings; full charts still needed
 - History tab — revisit calendar view design (user didn't love v1 calendar)
 - High protein, high carb, high fat, high fibre tags instead of detailed values
@@ -74,7 +73,7 @@ Instructions:
 - "Did you mean?" disambiguation flow — when Gemini encounters ambiguous terms (e.g., "eggs" could be scrambled, boiled, fried, omelette), show a disambiguation screen with options instead of defaulting. Needs new UI screen + Gemini prompt changes to flag ambiguous items.
 - Meal level summaries of cal + macros — calories done (inline after meal name with dot separator), macros not yet
 - Add Noice (Swiggy Instamart private label) products — 200+ artisanal items across bakery, dairy, snacks, beverages, sweets. No public nutrition data yet; need actual packaging labels from Swiggy app or physical products. Start with top sellers: malai paneer, butter cookies, coconut water, spicy potato chips, banana chips, kaju katli, Punjabi lassi, sourdough bread.
-- Dynamic goal setting: change calorie and macro targets for remaining days based on week-till-date logs
+- Dynamic goal setting: change calorie and macro targets for remaining days based on week-till-date logs. Also possible to include workout data to change calorie goals.
 
 ---
 

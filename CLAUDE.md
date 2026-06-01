@@ -135,6 +135,9 @@ Enable Row Level Security (RLS) on food_log and profiles from day 1.
 - **Quantities**: Always display in grams (g) for solid foods and millilitres (ml) for drinks/liquids. The LLM parser should translate natural language ("2 eggs", "a cup of coffee") into specific g/ml. This is the canonical unit system for logging, display, and editing.
 - Color palette: Apple Health-inspired — white bg, #34C759 accent green, #F2F2F7 secondary bg
 
+## Dev Workflow
+- After making code changes, always rebuild and restart the local server (`next build && next start -p 3002`) before telling the user it's ready to test. Do not leave a stale server running.
+
 ## Progress Tracking
 Keep `progress.md` up to date as work happens — log design changes, decisions, completed steps, and anything relevant without waiting for a prompt. Use your judgement on what's worth recording.
 

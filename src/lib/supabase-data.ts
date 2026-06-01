@@ -192,7 +192,7 @@ export async function fetchProcessingJobs(userId: string, date: string): Promise
     .select('*')
     .eq('user_id', userId)
     .eq('logged_date', date)
-    .eq('status', 'processing')
+    .in('status', ['processing', 'failed'])
     .order('created_at', { ascending: true });
 
   if (error) {
@@ -200,6 +200,24 @@ export async function fetchProcessingJobs(userId: string, date: string): Promise
     return [];
   }
   return data ?? [];
+}
+
+export async function updateProcessingJob(
+  id: string,
+  updates: Partial<Pick<ProcessingJob, 'status'>>
+): Promise<ProcessingJob | null> {
+  const { data, error } = await supabase
+    .from('processing_jobs')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('updateProcessingJob error:', error);
+    return null;
+  }
+  return data;
 }
 
 export async function deleteProcessingJob(id: string): Promise<boolean> {
