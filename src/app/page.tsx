@@ -2,20 +2,22 @@
 
 import { useState, useCallback, useRef, useEffect, TouchEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, X, Trash2 } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
 import CalorieRing from '@/components/CalorieRing';
 import MacroGrid from '@/components/MacroGrid';
 import FoodCard from '@/components/FoodCard';
 import FAB from '@/components/FAB';
 import AddFoodSheet from '@/components/AddFoodSheet';
+import { ReviewPhoto } from '@/components/PhotoReviewSheet';
 import EditFoodSheet from '@/components/EditFoodSheet';
 import Toast from '@/components/Toast';
 import WeekStrip from '@/components/WeekStrip';
 import { useAuth } from '@/components/AuthProvider';
-import { fetchFoodLogs, fetchProfile, updateFoodLog, deleteFoodLog, insertFoodLog, fetchSuggestions, fetchWeeklyCalories, getOrCreateShareLink, SuggestedFood } from '@/lib/supabase-data';
+import { fetchFoodLogs, fetchProfile, updateFoodLog, deleteFoodLog, insertFoodLog, fetchSuggestions, fetchWeeklyCalories, getOrCreateShareLink, SuggestedFood, insertProcessingJob, deleteProcessingJob, fetchProcessingJobs, uploadFoodPhoto, fetchSourceImages, SourceImage } from '@/lib/supabase-data';
 import SuggestedFoods from '@/components/SuggestedFoods';
-import { FoodLogEntry, Profile } from '@/lib/types';
+import { FoodLogEntry, Profile, ProcessingJob } from '@/lib/types';
+import { applyRotation } from '@/lib/image-utils';
 
 function formatDate(date: Date): string {
   const y = date.getFullYear();
@@ -62,6 +64,9 @@ export default function DashboardPage() {
     } catch {}
     return new Set<string>();
   });
+  const [processingJobs, setProcessingJobs] = useState<ProcessingJob[]>([]);
+  const [sourceImages, setSourceImages] = useState<SourceImage[]>([]);
+  const [expandedPhoto, setExpandedPhoto] = useState<SourceImage | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<FoodLogEntry | null>(null);
   const [toast, setToast] = useState<{
@@ -70,7 +75,6 @@ export default function DashboardPage() {
     action?: { label: string; onPress: () => void };
   }>({ visible: false, message: '' });
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(null);
-  const deleteTimer = useRef<ReturnType<typeof setTimeout>>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [weeklyCalories, setWeeklyCalories] = useState<Record<string, number>>({});
   const [sharing, setSharing] = useState(false);
@@ -121,11 +125,14 @@ export default function DashboardPage() {
         setRefreshing(true);
         setPullDistance(50);
         if (user) {
+          const date = formatDate(selectedDate);
           await Promise.all([
-            fetchFoodLogs(user.id, formatDate(selectedDate)).then(setLogs),
+            fetchFoodLogs(user.id, date).then(setLogs),
             fetchProfile(user.id).then(p => { if (p) setProfile(p); }),
             fetchSuggestions(user.id, selectedDate).then(setSuggestions),
             fetchWeeklyCalories(user.id, getWeekDates(selectedDate)).then(setWeeklyCalories),
+            fetchProcessingJobs(user.id, date).then(setProcessingJobs),
+            fetchSourceImages(user.id, date).then(setSourceImages),
           ]);
         }
         setRefreshing(false);
@@ -149,16 +156,22 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!user) return;
-    fetchFoodLogs(user.id, formatDate(selectedDate)).then(setLogs);
+    const date = formatDate(selectedDate);
+    fetchFoodLogs(user.id, date).then(setLogs);
     fetchSuggestions(user.id, selectedDate).then(setSuggestions);
     fetchWeeklyCalories(user.id, getWeekDates(selectedDate)).then(setWeeklyCalories);
+    fetchProcessingJobs(user.id, date).then(setProcessingJobs);
+    fetchSourceImages(user.id, date).then(setSourceImages);
   }, [user, selectedDate]);
 
   const refreshLogs = useCallback(() => {
     if (!user) return;
-    fetchFoodLogs(user.id, formatDate(selectedDate)).then(setLogs);
+    const date = formatDate(selectedDate);
+    fetchFoodLogs(user.id, date).then(setLogs);
     fetchSuggestions(user.id, selectedDate).then(setSuggestions);
     fetchWeeklyCalories(user.id, getWeekDates(selectedDate)).then(setWeeklyCalories);
+    fetchProcessingJobs(user.id, date).then(setProcessingJobs);
+    fetchSourceImages(user.id, date).then(setSourceImages);
   }, [user, selectedDate]);
 
   const totals = logs.reduce(
@@ -245,28 +258,28 @@ export default function DashboardPage() {
 
     if (closeEditSheet) setEditingEntry(null);
 
-    if (deleteTimer.current) clearTimeout(deleteTimer.current);
-
     setLogs(prev => prev.filter(log => log.id !== entryId));
 
-    const commitDelete = () => {
-      deleteFoodLog(entryId).then(success => {
-        if (!success) {
-          setLogs(prev => [...prev, deletedEntry]);
-          showToast('Failed to delete');
-        }
-      });
-    };
-
-    deleteTimer.current = setTimeout(commitDelete, 5000);
+    deleteFoodLog(entryId).then(success => {
+      if (!success) {
+        setLogs(prev => [...prev, deletedEntry]);
+        showToast('Failed to delete');
+      }
+    });
 
     showToast(`${deletedEntry.food_name} deleted`, 5000, {
       label: 'Undo',
       onPress: () => {
-        if (deleteTimer.current) clearTimeout(deleteTimer.current);
-        setLogs(prev => [...prev, deletedEntry].sort((a, b) =>
-          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        ));
+        const { id, created_at, updated_at, image_url, ...rest } = deletedEntry;
+        insertFoodLog({ ...rest, input_source: rest.input_source || 'text', source_image_url: rest.source_image_url || null }).then(restored => {
+          if (restored) {
+            setLogs(prev => [...prev, { ...restored, image_url: deletedEntry.image_url }].sort((a, b) =>
+              new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+            ));
+          } else {
+            showToast('Failed to undo');
+          }
+        });
         if (toastTimer.current) clearTimeout(toastTimer.current);
         setToast({ visible: false, message: '' });
       },
@@ -297,11 +310,115 @@ export default function DashboardPage() {
       logged_date: formatDate(selectedDate),
       status: 'confirmed',
       unit: item.unit as 'g' | 'ml',
+      input_source: 'text',
+      source_image_url: null,
     });
     if (entry) {
       setLogs(prev => [...prev, { ...entry, image_url: null }]);
       setSuggestions(prev => prev.filter(s => !(s.food_name === item.food_name && s.meal_type === item.meal_type)));
       showToast(`${item.food_name} logged ✓`);
+    }
+  }, [user, selectedDate, showToast]);
+
+  const handlePhotosSubmitted = useCallback(async (photos: ReviewPhoto[]) => {
+    if (!user) return;
+    const date = formatDate(selectedDate);
+
+    for (const photo of photos) {
+      const rotated = await applyRotation(photo.processedImage, photo.rotation);
+      const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+      const thumbnailUrl = await uploadFoodPhoto(user.id, rotated.thumbnailBlob, fileName);
+      if (!thumbnailUrl) {
+        showToast('Failed to upload photo');
+        continue;
+      }
+
+      const job = await insertProcessingJob({
+        user_id: user.id,
+        meal_type: photo.mealType,
+        logged_date: date,
+        image_url: thumbnailUrl,
+      });
+      if (!job) {
+        showToast('Failed to create processing job');
+        continue;
+      }
+
+      setProcessingJobs(prev => [...prev, job]);
+
+      (async () => {
+        try {
+          const parseRes = await fetch('/api/parse-food-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              image: rotated.originalBase64,
+              mimeType: rotated.mimeType,
+              mealType: photo.mealType,
+              currentHour: new Date().getHours(),
+            }),
+          });
+          if (!parseRes.ok) throw new Error((await parseRes.json().catch(() => ({}))).error || 'Image parse failed');
+          const parsed = await parseRes.json();
+
+          if (!parsed.items || parsed.items.length === 0) {
+            showToast('No food found in photo');
+            await deleteProcessingJob(job.id);
+            setProcessingJobs(prev => prev.filter(j => j.id !== job.id));
+            return;
+          }
+
+          const matchRes = await fetch('/api/match-food', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items: parsed.items }),
+          });
+          if (!matchRes.ok) throw new Error((await matchRes.json().catch(() => ({}))).error || 'Match failed');
+          const matched = await matchRes.json();
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const insertPromises = matched.items.map(async (item: any) => {
+            const ratio = item.quantity_g / 100;
+            return insertFoodLog({
+              user_id: user.id,
+              food_library_id: item.matched_library_id || null,
+              food_name: item.matched_library_name || item.name,
+              quantity_g: item.quantity_g,
+              calories: Math.round(item.calories_per_100g * ratio),
+              protein: Math.round(item.protein_per_100g * ratio),
+              carbs: Math.round(item.carbs_per_100g * ratio),
+              fat: Math.round(item.fat_per_100g * ratio),
+              fibre: Math.round(item.fibre_per_100g * ratio),
+              meal_type: photo.mealType,
+              logged_date: date,
+              status: 'confirmed',
+              unit: item.unit || 'g',
+              input_source: 'image',
+              source_image_url: thumbnailUrl,
+            });
+          });
+
+          const results = await Promise.all(insertPromises);
+          const inserted = results.filter(Boolean) as FoodLogEntry[];
+
+          await deleteProcessingJob(job.id);
+          setProcessingJobs(prev => prev.filter(j => j.id !== job.id));
+          setLogs(prev => [...prev, ...inserted.map(e => ({ ...e, image_url: null }))]);
+          setSourceImages(prev => {
+            const exists = prev.find(s => s.url === thumbnailUrl);
+            if (exists) return prev;
+            return [...prev, { url: thumbnailUrl, mealType: photo.mealType, foodIds: inserted.map(e => e.id) }];
+          });
+          showToast(`${inserted.length} food${inserted.length > 1 ? 's' : ''} logged from photo ✓`);
+        } catch (err) {
+          console.error('Photo processing error:', err);
+          await deleteProcessingJob(job.id);
+          setProcessingJobs(prev => prev.filter(j => j.id !== job.id));
+          showToast('Failed to analyze photo — try again');
+        }
+
+        URL.revokeObjectURL(photo.processedImage.thumbnailUrl);
+      })();
     }
   }, [user, selectedDate, showToast]);
 
@@ -379,6 +496,50 @@ export default function DashboardPage() {
           />
         </motion.div>
 
+        {/* Photo tray */}
+        {(sourceImages.length > 0 || processingJobs.length > 0) && (
+          <div className="mb-3">
+            <div className="flex gap-2.5 overflow-x-auto scrollbar-none pb-1">
+              {sourceImages.map((img, idx) => (
+                <motion.button
+                  key={img.url}
+                  className="flex-shrink-0 border-none p-0 cursor-pointer bg-transparent flex flex-col items-center gap-1"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: idx * 0.05 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setExpandedPhoto(img)}
+                >
+                  <div className="w-14 h-14 rounded-xl overflow-hidden">
+                    <img src={img.url} alt="Food photo" className="w-full h-full object-cover" />
+                  </div>
+                  <span className="text-[10px] font-medium text-text-tertiary capitalize">{img.mealType}</span>
+                </motion.button>
+              ))}
+              {processingJobs.map(job => (
+                <div key={job.id} className="flex-shrink-0 flex flex-col items-center gap-1">
+                  <motion.div
+                    className="w-14 h-14 rounded-xl overflow-hidden relative"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                  >
+                    <img src={job.image_url} alt="Processing" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                      >
+                        <RefreshCw size={16} className="text-white" />
+                      </motion.div>
+                    </div>
+                  </motion.div>
+                  <span className="text-[10px] font-medium text-text-tertiary capitalize">{job.meal_type}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Separator: summary / meals */}
         <div className="h-px bg-bg-tertiary mb-4" />
 
@@ -396,19 +557,20 @@ export default function DashboardPage() {
           let cardIndex = 0;
           return mealOrder.map((type) => {
             const entries = logs.filter(l => l.meal_type === type);
+            const mealJobs = processingJobs.filter(j => j.meal_type === type);
             const mealCalories = entries.reduce((sum, e) => sum + (e.status === 'confirmed' ? (e.calories ?? 0) : 0), 0);
             const loggedNames = new Set(entries.map(e => e.food_name));
             const mealSuggestions = showSuggestions && !dismissedMeals.has(`${formatDate(selectedDate)}:${type}`)
               ? allSuggestions.filter(s => s.meal_type === type && !loggedNames.has(s.food_name))
               : [];
-            const hasContent = entries.length > 0 || mealSuggestions.length > 0;
+            const hasContent = entries.length > 0 || mealSuggestions.length > 0 || mealJobs.length > 0;
 
             if (!hasContent) return null;
 
             return (
               <div key={type} className="mb-3">
                 {/* Grouped meal card */}
-                {entries.length > 0 && (
+                {(entries.length > 0 || mealJobs.length > 0) && (
                   <div
                     className="rounded-xl overflow-hidden mb-2"
                     style={{ backgroundColor: 'var(--color-card-bg)', '--meal-bg': 'var(--color-card-bg)' } as React.CSSProperties}
@@ -438,6 +600,32 @@ export default function DashboardPage() {
                         );
                       })}
                     </AnimatePresence>
+                    {/* Processing job cards */}
+                    {mealJobs.map(job => (
+                      <motion.div
+                        key={job.id}
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                      >
+                        {(entries.length > 0) && <div className="h-px bg-bg-tertiary mx-3.5" />}
+                        <div className="p-3 px-3.5 flex items-center gap-3">
+                          <div className="w-11 h-11 rounded-[10px] overflow-hidden flex-shrink-0 relative">
+                            <img src={job.image_url} alt="Analyzing" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                              <motion.div
+                                animate={{ rotate: 360 }}
+                                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                              >
+                                <RefreshCw size={12} className="text-white" />
+                              </motion.div>
+                            </div>
+                          </div>
+                          <div className="flex-1">
+                            <span className="text-[14px] font-medium text-text-secondary">Identifying foods...</span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
                     <AnimatePresence>
                       {mealSuggestions.length > 0 && (
                         <motion.div
@@ -459,8 +647,8 @@ export default function DashboardPage() {
                   </div>
                 )}
 
-                {/* Suggestions-only card when no logged entries */}
-                {entries.length === 0 && mealSuggestions.length > 0 && (
+                {/* Suggestions-only card when no logged entries and no processing jobs */}
+                {entries.length === 0 && mealJobs.length === 0 && mealSuggestions.length > 0 && (
                   <div
                     className="rounded-xl overflow-hidden mb-2"
                     style={{ backgroundColor: 'var(--color-card-bg)' }}
@@ -497,7 +685,118 @@ export default function DashboardPage() {
         userId={user?.id ?? ''}
         logDate={formatDate(selectedDate)}
         onToast={showToast}
+        onPhotosSubmitted={handlePhotosSubmitted}
       />
+
+      {/* Photo detail view */}
+      <AnimatePresence>
+        {expandedPhoto && (
+          <motion.div
+            className="fixed inset-0 bg-black/95 z-50 flex flex-col"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 pt-[max(env(safe-area-inset-top),12px)] pb-2">
+              <motion.button
+                className="w-9 h-9 rounded-full bg-white/15 border-none flex items-center justify-center cursor-pointer"
+                onClick={() => setExpandedPhoto(null)}
+                whileTap={{ scale: 0.9 }}
+              >
+                <X size={18} className="text-white" />
+              </motion.button>
+              <span className="text-white/70 text-[14px] font-medium capitalize">{expandedPhoto.mealType}</span>
+              <motion.button
+                className="text-[14px] font-medium text-red-400 bg-transparent border-none cursor-pointer px-2 py-1"
+                onClick={async () => {
+                  const photo = expandedPhoto;
+                  setExpandedPhoto(null);
+                  for (const id of photo.foodIds) {
+                    await deleteFoodLog(id);
+                  }
+                  setLogs(prev => prev.filter(l => !photo.foodIds.includes(l.id)));
+                  setSourceImages(prev => prev.filter(s => s.url !== photo.url));
+                  showToast(`Photo and ${photo.foodIds.length} food${photo.foodIds.length > 1 ? 's' : ''} deleted`);
+                }}
+                whileTap={{ scale: 0.95 }}
+              >
+                Delete All
+              </motion.button>
+            </div>
+
+            {/* Photo */}
+            <div className="px-4 pb-3">
+              <motion.img
+                src={expandedPhoto.url}
+                alt="Food photo"
+                className="w-full rounded-xl object-contain max-h-[40vh]"
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+              />
+            </div>
+
+            {/* Food list */}
+            <div className="flex-1 overflow-y-auto px-4 pb-[max(env(safe-area-inset-bottom),16px)]">
+              <div className="text-white/50 text-[12px] font-medium uppercase tracking-wide mb-2">
+                Identified foods ({expandedPhoto.foodIds.length})
+              </div>
+              <div className="rounded-xl overflow-hidden" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
+                {expandedPhoto.foodIds.map((foodId, idx) => {
+                  const entry = logs.find(l => l.id === foodId);
+                  if (!entry) return null;
+                  const unitLabel = entry.unit === 'ml' ? 'ml' : 'g';
+                  return (
+                    <div key={foodId}>
+                      {idx > 0 && <div className="h-px bg-white/10 mx-3.5" />}
+                      <div className="p-3 px-3.5 flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[14px] font-medium text-white leading-snug">{entry.food_name}</div>
+                          <div className="flex items-baseline justify-between gap-2 mt-px text-[13px] text-white/50">
+                            <span>{entry.quantity_g}{unitLabel} &middot; {entry.calories} cal</span>
+                            <span>P:{entry.protein} C:{entry.carbs} F:{entry.fat} Fi:{entry.fibre}</span>
+                          </div>
+                        </div>
+                        <div className="flex gap-1.5 flex-shrink-0">
+                          <motion.button
+                            className="w-8 h-8 rounded-lg bg-white/10 border-none flex items-center justify-center cursor-pointer"
+                            onClick={() => { setExpandedPhoto(null); setEditingEntry(entry); }}
+                            whileTap={{ scale: 0.9 }}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                            </svg>
+                          </motion.button>
+                          <motion.button
+                            className="w-8 h-8 rounded-lg bg-white/10 border-none flex items-center justify-center cursor-pointer"
+                            onClick={async () => {
+                              await deleteFoodLog(foodId);
+                              setLogs(prev => prev.filter(l => l.id !== foodId));
+                              setExpandedPhoto(prev => {
+                                if (!prev) return null;
+                                const newIds = prev.foodIds.filter(id => id !== foodId);
+                                if (newIds.length === 0) return null;
+                                return { ...prev, foodIds: newIds };
+                              });
+                              setSourceImages(prev => prev.map(s =>
+                                s.url === expandedPhoto.url ? { ...s, foodIds: s.foodIds.filter(id => id !== foodId) } : s
+                              ).filter(s => s.foodIds.length > 0));
+                              showToast(`${entry.food_name} deleted`);
+                            }}
+                            whileTap={{ scale: 0.9 }}
+                          >
+                            <Trash2 size={14} className="text-red-400" />
+                          </motion.button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <EditFoodSheet
         entry={editingEntry}

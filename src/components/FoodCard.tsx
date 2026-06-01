@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { motion, useMotionValue, useTransform, PanInfo } from 'framer-motion';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Camera } from 'lucide-react';
 import { FoodLogEntry } from '@/lib/types';
 
 interface FoodCardProps {
@@ -122,7 +122,12 @@ export default function FoodCard({ entry, index, showSeparator, onClick, onDelet
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <div className="text-[14px] font-medium leading-snug">{entry.food_name}</div>
+            <div className="text-[14px] font-medium leading-snug flex items-center gap-1">
+              {entry.food_name}
+              {entry.input_source === 'image' && (
+                <Camera size={12} className="text-text-tertiary flex-shrink-0" />
+              )}
+            </div>
             {entry.status === 'confirmed' ? (
               <div className="flex items-baseline justify-between gap-2 mt-px text-[13px] text-text-secondary">
                 <span className="whitespace-nowrap">

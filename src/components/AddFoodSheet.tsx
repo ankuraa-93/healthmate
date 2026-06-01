@@ -2,9 +2,11 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mic, ArrowUp, X, Check, ChevronDown, Trash2, Loader2 } from 'lucide-react';
+import { Mic, ArrowUp, X, Check, ChevronDown, Trash2, Loader2, Camera } from 'lucide-react';
 import { insertFoodLog, deleteFoodLog, updateFoodLog } from '@/lib/supabase-data';
+import { processImage } from '@/lib/image-utils';
 import { getQuantityWarning } from '@/lib/nutrition';
+import PhotoReviewSheet, { ReviewPhoto } from './PhotoReviewSheet';
 
 // --- Types ---
 
@@ -30,6 +32,7 @@ interface AddFoodSheetProps {
   userId: string;
   logDate: string;
   onToast?: (message: string) => void;
+  onPhotosSubmitted?: (photos: ReviewPhoto[]) => void;
 }
 
 // --- Helpers ---
@@ -75,17 +78,29 @@ function FoodThumbnail({ imageUrl, name }: { imageUrl?: string | null; name: str
 
 // --- Component ---
 
-function AddFoodSheetInner({ onClose, userId, logDate, onToast }: Omit<AddFoodSheetProps, 'open'>) {
+function getDefaultMealType(): 'breakfast' | 'lunch' | 'dinner' | 'snack' {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 11) return 'breakfast';
+  if (hour >= 11 && hour < 15) return 'lunch';
+  if (hour >= 15 && hour < 18) return 'snack';
+  if (hour >= 18 && hour < 24) return 'dinner';
+  return 'snack';
+}
+
+function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitted }: Omit<AddFoodSheetProps, 'open'>) {
   const [input, setInput] = useState('');
   const [trayItems, setTrayItems] = useState<TrayItem[]>([]);
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [savingIndices, setSavingIndices] = useState<Set<number>>(new Set());
+  const [reviewPhotos, setReviewPhotos] = useState<ReviewPhoto[]>([]);
+  const [showPhotoReview, setShowPhotoReview] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const micStreamRef = useRef<MediaStream | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const hasContent = input.trim().length > 0;
   const micSupported = typeof window !== 'undefined' && typeof MediaRecorder !== 'undefined' && getAudioMimeType() !== '';
@@ -108,6 +123,8 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast }: Omit<AddFoodSh
       logged_date: logDate,
       status: 'confirmed',
       unit: item.unit,
+      input_source: 'text',
+      source_image_url: null,
     });
     if (!entry) return null;
     return { ...item, id: entry.id };
@@ -262,6 +279,49 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast }: Omit<AddFoodSh
 
   const handleToggleExpand = (index: number) => {
     setExpandedIndex(prev => prev === index ? null : index);
+  };
+
+  // --- Photo handling ---
+
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const defaultMeal = getDefaultMealType();
+    const newPhotos: ReviewPhoto[] = [];
+
+    for (const file of Array.from(files)) {
+      try {
+        const processed = await processImage(file);
+        newPhotos.push({ processedImage: processed, mealType: defaultMeal, rotation: 0 });
+      } catch (err) {
+        console.error('Image processing error:', err);
+        onToast?.('Failed to process image');
+      }
+    }
+
+    if (newPhotos.length > 0) {
+      setReviewPhotos(prev => [...prev, ...newPhotos]);
+      setShowPhotoReview(true);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handlePhotoSubmit = (photos: ReviewPhoto[]) => {
+    setShowPhotoReview(false);
+    setReviewPhotos([]);
+    onPhotosSubmitted?.(photos);
+    onClose();
+  };
+
+  const handlePhotoReviewClose = () => {
+    reviewPhotos.forEach(p => URL.revokeObjectURL(p.processedImage.thumbnailUrl));
+    setShowPhotoReview(false);
+    setReviewPhotos([]);
+  };
+
+  const handleAddMorePhotos = () => {
+    fileInputRef.current?.click();
   };
 
   useEffect(() => {
@@ -530,26 +590,44 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast }: Omit<AddFoodSh
               />
             )}
             <div className="flex items-center justify-between mt-2">
-              {micSupported ? (
+              <div className="flex items-center gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={handlePhotoSelect}
+                />
                 <motion.button
-                  className={`w-9 h-9 rounded-full border-none flex items-center justify-center cursor-pointer flex-shrink-0 transition-colors ${
-                    recording ? 'bg-destructive text-white' : 'bg-bg-tertiary text-text-secondary'
-                  }`}
-                  onClick={toggleRecording}
-                  disabled={!!loadingMessage}
+                  className="w-9 h-9 rounded-full bg-bg-tertiary border-none flex items-center justify-center text-text-secondary cursor-pointer flex-shrink-0"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={!!loadingMessage || recording}
                   whileTap={{ scale: 0.9 }}
-                  animate={recording ? { scale: [1, 1.1, 1] } : {}}
-                  transition={recording ? { duration: 1, repeat: Infinity } : {}}
                 >
-                  {recording ? (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                      <rect x="4" y="4" width="16" height="16" rx="2" />
-                    </svg>
-                  ) : (
-                    <Mic size={18} />
-                  )}
+                  <Camera size={18} />
                 </motion.button>
-              ) : <div />}
+                {micSupported && (
+                  <motion.button
+                    className={`w-9 h-9 rounded-full border-none flex items-center justify-center cursor-pointer flex-shrink-0 transition-colors ${
+                      recording ? 'bg-destructive text-white' : 'bg-bg-tertiary text-text-secondary'
+                    }`}
+                    onClick={toggleRecording}
+                    disabled={!!loadingMessage}
+                    whileTap={{ scale: 0.9 }}
+                    animate={recording ? { scale: [1, 1.1, 1] } : {}}
+                    transition={recording ? { duration: 1, repeat: Infinity } : {}}
+                  >
+                    {recording ? (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <rect x="4" y="4" width="16" height="16" rx="2" />
+                      </svg>
+                    ) : (
+                      <Mic size={18} />
+                    )}
+                  </motion.button>
+                )}
+              </div>
               <motion.button
                 className="w-9 h-9 rounded-full bg-accent border-none flex items-center justify-center text-white cursor-pointer flex-shrink-0 disabled:opacity-35 disabled:cursor-default"
                 disabled={!hasContent || recording || !!loadingMessage}
@@ -562,6 +640,19 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast }: Omit<AddFoodSh
           </div>
         </div>
       </motion.div>
+
+      {/* Full-screen photo review */}
+      <AnimatePresence>
+        {showPhotoReview && reviewPhotos.length > 0 && (
+          <PhotoReviewSheet
+            photos={reviewPhotos}
+            onChange={setReviewPhotos}
+            onSubmit={handlePhotoSubmit}
+            onClose={handlePhotoReviewClose}
+            onAddMore={handleAddMorePhotos}
+          />
+        )}
+      </AnimatePresence>
     </>
   );
 }

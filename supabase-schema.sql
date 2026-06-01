@@ -35,6 +35,8 @@ create table food_log (
   logged_date date not null default current_date,
   status text not null default 'confirmed',
   unit text not null default 'g',
+  input_source text not null default 'text',
+  source_image_url text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );

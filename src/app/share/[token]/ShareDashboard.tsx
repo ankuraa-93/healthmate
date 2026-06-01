@@ -53,6 +53,8 @@ function toFoodLogEntry(e: SharedEntry, loggedDate: string): FoodLogEntry {
     status: 'confirmed',
     meal_type: e.meal_type as FoodLogEntry['meal_type'],
     unit: e.unit as FoodLogEntry['unit'],
+    input_source: 'text',
+    source_image_url: null,
     created_at: '',
     updated_at: '',
   };

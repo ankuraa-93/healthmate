@@ -1,5 +1,5 @@
 import { createClient } from './supabase';
-import { FoodLogEntry, Profile, FoodLibraryItem } from './types';
+import { FoodLogEntry, Profile, FoodLibraryItem, ProcessingJob } from './types';
 
 const supabase = createClient();
 
@@ -163,6 +163,109 @@ export async function getOrCreateShareLink(userId: string, date: string): Promis
     return null;
   }
   return created?.token ?? null;
+}
+
+// --- Processing Jobs ---
+
+export async function insertProcessingJob(job: {
+  user_id: string;
+  meal_type: string;
+  logged_date: string;
+  image_url: string;
+}): Promise<ProcessingJob | null> {
+  const { data, error } = await supabase
+    .from('processing_jobs')
+    .insert(job)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('insertProcessingJob error:', error);
+    return null;
+  }
+  return data;
+}
+
+export async function fetchProcessingJobs(userId: string, date: string): Promise<ProcessingJob[]> {
+  const { data, error } = await supabase
+    .from('processing_jobs')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('logged_date', date)
+    .eq('status', 'processing')
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('fetchProcessingJobs error:', error);
+    return [];
+  }
+  return data ?? [];
+}
+
+export async function deleteProcessingJob(id: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('processing_jobs')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('deleteProcessingJob error:', error);
+    return false;
+  }
+  return true;
+}
+
+// --- Photo Storage ---
+
+export async function uploadFoodPhoto(userId: string, blob: Blob, fileName: string): Promise<string | null> {
+  const path = `${userId}/${fileName}`;
+  const { error } = await supabase.storage
+    .from('food-photos')
+    .upload(path, blob, { contentType: 'image/jpeg', upsert: false });
+
+  if (error) {
+    console.error('uploadFoodPhoto error:', error);
+    return null;
+  }
+
+  const { data: urlData } = supabase.storage
+    .from('food-photos')
+    .getPublicUrl(path);
+
+  return urlData.publicUrl;
+}
+
+// --- Fetch source images for a date ---
+
+export interface SourceImage {
+  url: string;
+  mealType: string;
+  foodIds: string[];
+}
+
+export async function fetchSourceImages(userId: string, date: string): Promise<SourceImage[]> {
+  const { data, error } = await supabase
+    .from('food_log')
+    .select('id, source_image_url, meal_type')
+    .eq('user_id', userId)
+    .eq('logged_date', date)
+    .eq('input_source', 'image')
+    .not('source_image_url', 'is', null);
+
+  if (error) {
+    console.error('fetchSourceImages error:', error);
+    return [];
+  }
+
+  const map = new Map<string, SourceImage>();
+  for (const row of data ?? []) {
+    const url = row.source_image_url as string;
+    if (!map.has(url)) {
+      map.set(url, { url, mealType: row.meal_type, foodIds: [] });
+    }
+    map.get(url)!.foodIds.push(row.id);
+  }
+  return [...map.values()];
 }
 
 // --- Suggestions (pattern-based) ---

@@ -29,9 +29,21 @@ export interface FoodLogEntry {
   logged_date: string;
   status: 'confirmed' | 'processing';
   unit: 'g' | 'ml';
+  input_source: 'text' | 'voice' | 'image';
+  source_image_url: string | null;
   image_url?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ProcessingJob {
+  id: string;
+  user_id: string;
+  meal_type: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+  logged_date: string;
+  image_url: string;
+  status: 'processing' | 'completed' | 'failed';
+  created_at: string;
 }
 
 export interface Profile {
