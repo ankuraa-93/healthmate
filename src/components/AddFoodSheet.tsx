@@ -101,6 +101,12 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
   const audioChunksRef = useRef<Blob[]>([]);
   const micStreamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  // Gate drag-to-dismiss: enabled from the handle, or from the body only when
+  // scrolled to top; disabled over the input bar so typing/mic/camera never drag.
+  const [canDrag, setCanDrag] = useState(true);
+  // Meal override for this entry. null = let Gemini auto-detect per food.
+  const [selectedMeal, setSelectedMeal] = useState<'breakfast' | 'lunch' | 'dinner' | 'snack' | null>(null);
 
   const hasContent = input.trim().length > 0;
   const micSupported = typeof window !== 'undefined' && typeof MediaRecorder !== 'undefined' && getAudioMimeType() !== '';
@@ -119,7 +125,7 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
       carbs: Math.round(item.carbs_per_100g * ratio),
       fat: Math.round(item.fat_per_100g * ratio),
       fibre: Math.round(item.fibre_per_100g * ratio),
-      meal_type: item.meal_type,
+      meal_type: selectedMeal ?? item.meal_type,
       logged_date: logDate,
       status: 'confirmed',
       unit: item.unit,
@@ -127,7 +133,7 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
       source_image_url: null,
     });
     if (!entry) return null;
-    return { ...item, id: entry.id };
+    return { ...item, meal_type: selectedMeal ?? item.meal_type, id: entry.id };
   };
 
   // --- Text submit ---
@@ -287,7 +293,7 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const defaultMeal = getDefaultMealType();
+    const defaultMeal = selectedMeal ?? getDefaultMealType();
     const newPhotos: ReviewPhoto[] = [];
 
     for (const file of Array.from(files)) {
@@ -355,9 +361,21 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+        drag="y"
+        dragListener={canDrag}
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={{ top: 0, bottom: 0.6 }}
+        onDragEnd={(_, info) => {
+          if (info.offset.y > 120 || info.velocity.y > 600) onClose();
+        }}
       >
-        {/* Handle */}
-        <div className="w-9 h-1 bg-bg-tertiary rounded-full mx-auto mt-2.5 flex-shrink-0" />
+        {/* Handle — always drag-dismissable */}
+        <div
+          className="pt-2.5 pb-1 flex-shrink-0 cursor-grab active:cursor-grabbing"
+          onPointerDown={() => setCanDrag(true)}
+        >
+          <div className="w-9 h-1 bg-bg-tertiary rounded-full mx-auto" />
+        </div>
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-4 flex-shrink-0">
@@ -386,7 +404,10 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
         </div>
 
         {/* Scrollable body */}
-        <div className="flex-1 overflow-y-auto px-6 pt-4 scrollbar-none">
+        <div
+          ref={bodyRef}
+          onPointerDown={() => setCanDrag((bodyRef.current?.scrollTop ?? 0) <= 0)}
+          className="flex-1 overflow-y-auto px-6 pt-4 scrollbar-none">
 
           {/* ── Logged foods tray ── */}
           <AnimatePresence>
@@ -565,7 +586,33 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
         </div>
 
         {/* ── Fixed bottom input bar ── */}
-        <div className="flex-shrink-0 p-4 pb-[max(12px,env(safe-area-inset-bottom))] border-t border-bg-tertiary/50 bg-bg-primary">
+        <div
+          onPointerDown={() => setCanDrag(false)}
+          className="flex-shrink-0 p-4 pb-[max(12px,env(safe-area-inset-bottom))] border-t border-bg-tertiary/50 bg-bg-primary">
+          {/* Meal selector — "Auto" lets Gemini detect the meal per food */}
+          <div className="flex gap-1.5 mb-2.5 overflow-x-auto scrollbar-none">
+            {([
+              { key: null, label: 'Auto' },
+              { key: 'breakfast', label: 'Breakfast' },
+              { key: 'lunch', label: 'Lunch' },
+              { key: 'snack', label: 'Snack' },
+              { key: 'dinner', label: 'Dinner' },
+            ] as const).map(opt => {
+              const active = selectedMeal === opt.key;
+              return (
+                <motion.button
+                  key={opt.label}
+                  onClick={() => setSelectedMeal(opt.key)}
+                  className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[13px] font-medium border-none cursor-pointer transition-colors ${
+                    active ? 'bg-accent/12 text-accent' : 'bg-bg-secondary text-text-secondary'
+                  }`}
+                  whileTap={{ scale: 0.93 }}
+                >
+                  {opt.label}
+                </motion.button>
+              );
+            })}
+          </div>
           <div className="bg-bg-secondary rounded-[20px] px-4 pt-3 pb-2.5 focus-within:ring-2 focus-within:ring-accent/25 transition-shadow">
             {loadingMessage ? (
               <div className="flex items-center gap-2.5 min-h-[56px]">

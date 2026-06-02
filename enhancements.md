@@ -57,6 +57,13 @@ Instructions:
 - ~~Resilient image processing — handle Gemini failures (503 overload, rate limits, transient errors) gracefully. Options: fallback to a secondary model (e.g. gemini-2.0-flash), or a retry cron job that picks up failed/stuck processing jobs and reprocesses them on a schedule. Goal: no photo should silently fail — user should always get results, even if delayed.~~ - Completed ✅
 - user should be able to edit foods identified from photos (keeping them linked to the photo but with an option to replace in case of wrong ID)
 - ~~photos should be visible on the shareable link~~ - Completed ✅
+- ~~photos in gallery can be 50% bigger with option to go left and right (arrow buttons as well swipe gestures)~~ - Completed ✅ (sized at 30% bigger per follow-up; added arrow buttons, swipe gestures, and dot indicators; applied to both logger dashboard and share viewer)
+- ~~give option on log food screen at the time of entry to select the meal they want to log the foods under (can be blank if someone is trying to log multiple meal foods together in which Gemini will auto detect). if user picks an option, we should put all foods identified in that instance under the selected meal.~~ - Completed ✅ (meal pill row in input bar with "Auto" default; overrides meal for all text/voice foods in the entry and seeds the photo-review default; subtle green-tint selected style)
+- ~~Swipe-down-to-dismiss on Log Food and Edit Food bottom sheets (handle always drags; body drags only when scrolled to top; disabled over input bar)~~ - Completed ✅
+- ~~Close (X) button on Edit Food sheet for novice users (matching bottom-sheet close style)~~ - Completed ✅
+- ~~Photo tray on dashboard ordered by meal type (Breakfast → Lunch → Snack → Dinner)~~ - Completed ✅
+- ~~Fix full-screen overlays escaping the 428px mobile frame on desktop — photo gallery, photo review sheet, and processing-photo viewer switched from `fixed inset-0` to `absolute inset-0`~~ - Completed ✅
+- ~~Fix processing-photo delete button truncation (clipped by tray's overflow-x); added top padding and restyled to bottom-sheet close button~~ - Completed ✅
 
 ---
 

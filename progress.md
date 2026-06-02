@@ -804,3 +804,23 @@ Action required: run the updated `supabase-share-links.sql` in the Supabase SQL 
 
 ### Build gotcha (noted)
 Running `next build` while a `next start` still holds `.next` can leave `.next/server/app/` missing → every route 404s despite a "successful" build log. Fix: kill the server first, `rm -rf .next` if needed, then rebuild. Always kill 3002 before rebuilding.
+
+## Session: 2026-06-03 (cont.) — Photo UX polish + meal selector
+
+A batch of photo/sheet UX improvements following the share-photos work.
+
+### Changes
+- **Swipe-down-to-dismiss** on Log Food (`AddFoodSheet`) and Edit Food (`EditFoodSheet`) sheets via Framer `drag="y"` (elastic down, threshold offset>120 or velocity>600). Gated to avoid conflicts: drag always works from the handle, from the body only when scrolled to top, and is disabled over the Log Food input bar (so typing/mic/camera taps never drag). Uses `dragListener={canDrag}` toggled on `onPointerDown` per region.
+- **Close (X) button on EditFoodSheet** — it previously had no explicit close (only backdrop tap). Added in the header using the bottom-sheet close style.
+- **Photo tray ordered by meal type** (Breakfast → Lunch → Snack → Dinner) on dashboard (`MEAL_ORDER` const) and share page.
+- **Photo gallery upgrade** (logger + share viewer): photo 30% bigger (`40vh`→`52vh`), prev/next via arrow buttons + horizontal swipe (drag x, threshold 60), dot indicators, re-mount fade per photo. Navigation follows the meal-sorted order.
+- **Meal selector on Log Food** — pill row in the input bar: `[Auto] [Breakfast] [Lunch] [Snack] [Dinner]`. `Auto` (=null) keeps Gemini per-food auto-detect. Selecting a meal overrides `meal_type` for all text/voice foods in that entry (in DB and tray grouping via `logItemToDb`) and seeds the photo-review default meal. Selected style is a subtle `bg-accent/12 text-accent` tint (solid green fill was too loud).
+- **Mobile-frame fixes** — `PhotoReviewSheet` (uploaded-photo review) and the processing-photo viewer were `fixed inset-0` (full browser width on desktop); switched to `absolute inset-0` to stay in the 428px frame. (Earlier: share + logger photo viewers already fixed.)
+- **Processing-photo delete button** was truncated — the outset badge (`-top-1.5`) was clipped because the tray's `overflow-x-auto` forces `overflow-y:auto`. Added `pt-2` to the scroll row and restyled the button to the bottom-sheet close style (`w-8 h-8 bg-bg-secondary` + gray X, `shadow-md` for legibility over the photo).
+
+### Files
+- `src/components/AddFoodSheet.tsx`, `src/components/EditFoodSheet.tsx`, `src/components/PhotoReviewSheet.tsx`
+- `src/app/page.tsx`, `src/app/share/[token]/ShareDashboard.tsx`
+
+### Note
+No DB/Supabase changes in this batch — frontend only. Safe to deploy without running SQL.

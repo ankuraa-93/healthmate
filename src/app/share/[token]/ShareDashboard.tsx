@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect, TouchEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw, X } from 'lucide-react';
+import { RefreshCw, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import CalorieRing from '@/components/CalorieRing';
 import MacroGrid from '@/components/MacroGrid';
 import FoodCard from '@/components/FoodCard';
@@ -161,7 +161,10 @@ export default function ShareDashboard({ token }: { token: string }) {
   }
 
   const logs = data.entries.map(e => toFoodLogEntry(e, data.logged_date));
-  const sourceImages = data.source_images ?? [];
+  const mealOrderKeys = ['breakfast', 'lunch', 'snack', 'dinner'];
+  const sourceImages = [...(data.source_images ?? [])].sort(
+    (a, b) => mealOrderKeys.indexOf(a.mealType) - mealOrderKeys.indexOf(b.mealType)
+  );
 
   const totals = logs.reduce(
     (acc, log) => ({
@@ -342,15 +345,62 @@ export default function ShareDashboard({ token }: { token: string }) {
             </div>
 
             {/* Photo */}
-            <div className="px-4 pb-3">
-              <motion.img
-                src={expandedPhoto.url}
-                alt="Food photo"
-                className="w-full rounded-xl object-contain max-h-[40vh]"
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-              />
-            </div>
+            {(() => {
+              const idx = sourceImages.findIndex(s => s.url === expandedPhoto.url);
+              const hasPrev = idx > 0;
+              const hasNext = idx >= 0 && idx < sourceImages.length - 1;
+              const go = (delta: number) => {
+                const next = sourceImages[idx + delta];
+                if (next) setExpandedPhoto(next);
+              };
+              return (
+                <div className="px-4 pb-3">
+                  <div className="relative">
+                    <motion.img
+                      key={expandedPhoto.url}
+                      src={expandedPhoto.url}
+                      alt="Food photo"
+                      className="w-full rounded-xl object-contain max-h-[52vh] select-none"
+                      draggable={false}
+                      drag={sourceImages.length > 1 ? 'x' : false}
+                      dragConstraints={{ left: 0, right: 0 }}
+                      dragElastic={0.15}
+                      onDragEnd={(_, info) => {
+                        if (info.offset.x < -60 && hasNext) go(1);
+                        else if (info.offset.x > 60 && hasPrev) go(-1);
+                      }}
+                      initial={{ scale: 0.95, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                    />
+                    {hasPrev && (
+                      <motion.button
+                        className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 border-none flex items-center justify-center cursor-pointer"
+                        onClick={() => go(-1)}
+                        whileTap={{ scale: 0.9 }}
+                      >
+                        <ChevronLeft size={20} className="text-white" />
+                      </motion.button>
+                    )}
+                    {hasNext && (
+                      <motion.button
+                        className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 border-none flex items-center justify-center cursor-pointer"
+                        onClick={() => go(1)}
+                        whileTap={{ scale: 0.9 }}
+                      >
+                        <ChevronRight size={20} className="text-white" />
+                      </motion.button>
+                    )}
+                  </div>
+                  {sourceImages.length > 1 && (
+                    <div className="flex justify-center gap-1.5 mt-2.5">
+                      {sourceImages.map((s, i) => (
+                        <div key={s.url} className={`h-1.5 rounded-full transition-all ${i === idx ? 'w-4 bg-white' : 'w-1.5 bg-white/30'}`} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Food list */}
             <div className="flex-1 overflow-y-auto px-4 pb-[max(env(safe-area-inset-bottom),16px)]">

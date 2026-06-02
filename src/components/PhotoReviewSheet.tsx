@@ -64,7 +64,7 @@ export default function PhotoReviewSheet({ photos, onChange, onSubmit, onClose, 
 
   return (
     <motion.div
-      className="fixed inset-0 bg-black z-50 flex flex-col"
+      className="absolute inset-0 bg-black z-50 flex flex-col"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}

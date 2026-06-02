@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect, TouchEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw, X, Trash2, AlertCircle, ChevronDown } from 'lucide-react';
+import { RefreshCw, X, Trash2, AlertCircle, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
 import CalorieRing from '@/components/CalorieRing';
 import MacroGrid from '@/components/MacroGrid';
@@ -19,6 +19,9 @@ import SuggestedFoods from '@/components/SuggestedFoods';
 import { FoodLogEntry, Profile, ProcessingJob } from '@/lib/types';
 import { applyRotation, ProcessedImage } from '@/lib/image-utils';
 import { scaleNutritionFromEntry } from '@/lib/nutrition';
+
+// Canonical meal ordering used for grouping/sorting throughout the dashboard.
+const MEAL_ORDER = ['breakfast', 'lunch', 'snack', 'dinner'];
 
 function formatDate(date: Date): string {
   const y = date.getFullYear();
@@ -574,8 +577,10 @@ export default function DashboardPage() {
         {/* Photo tray */}
         {(sourceImages.length > 0 || processingJobs.length > 0) && (
           <div className="mb-3 -mr-4">
-            <div className="flex gap-2.5 overflow-x-auto scrollbar-none pb-1 pr-4">
-              {sourceImages.map((img, idx) => (
+            <div className="flex gap-2.5 overflow-x-auto scrollbar-none pt-2 pb-1 pr-4">
+              {[...sourceImages].sort((a, b) =>
+                MEAL_ORDER.indexOf(a.mealType) - MEAL_ORDER.indexOf(b.mealType)
+              ).map((img, idx) => (
                 <motion.button
                   key={img.url}
                   className="flex-shrink-0 border-none p-0 cursor-pointer bg-transparent flex flex-col items-center gap-1"
@@ -629,11 +634,11 @@ export default function DashboardPage() {
                     </div>
                   </motion.button>
                   <motion.button
-                    className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-black/70 border border-white/20 flex items-center justify-center cursor-pointer z-10"
+                    className="absolute -top-1.5 -right-1.5 w-8 h-8 rounded-full bg-bg-secondary border-none flex items-center justify-center text-text-secondary cursor-pointer z-10 shadow-md"
                     onClick={() => setConfirmDeleteJob(job)}
                     whileTap={{ scale: 0.85 }}
                   >
-                    <X size={12} className="text-white" />
+                    <X size={18} />
                   </motion.button>
                   <span className={`text-[11px] font-medium capitalize ${job.status === 'failed' ? 'text-red-400' : 'text-text-tertiary'}`}>
                     {job.status === 'failed' ? 'Failed' : job.meal_type}
@@ -837,15 +842,63 @@ export default function DashboardPage() {
             </div>
 
             {/* Photo */}
-            <div className="px-4 pb-3">
-              <motion.img
-                src={expandedPhoto.url}
-                alt="Food photo"
-                className="w-full rounded-xl object-contain max-h-[40vh]"
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-              />
-            </div>
+            {(() => {
+              const sorted = [...sourceImages].sort((a, b) => MEAL_ORDER.indexOf(a.mealType) - MEAL_ORDER.indexOf(b.mealType));
+              const idx = sorted.findIndex(s => s.url === expandedPhoto.url);
+              const hasPrev = idx > 0;
+              const hasNext = idx >= 0 && idx < sorted.length - 1;
+              const go = (delta: number) => {
+                const next = sorted[idx + delta];
+                if (next) { setExpandedPhotoFoodIdx(null); setExpandedPhoto(next); }
+              };
+              return (
+                <div className="px-4 pb-3">
+                  <div className="relative">
+                    <motion.img
+                      key={expandedPhoto.url}
+                      src={expandedPhoto.url}
+                      alt="Food photo"
+                      className="w-full rounded-xl object-contain max-h-[52vh] select-none"
+                      draggable={false}
+                      drag={sorted.length > 1 ? 'x' : false}
+                      dragConstraints={{ left: 0, right: 0 }}
+                      dragElastic={0.15}
+                      onDragEnd={(_, info) => {
+                        if (info.offset.x < -60 && hasNext) go(1);
+                        else if (info.offset.x > 60 && hasPrev) go(-1);
+                      }}
+                      initial={{ scale: 0.95, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                    />
+                    {hasPrev && (
+                      <motion.button
+                        className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 border-none flex items-center justify-center cursor-pointer"
+                        onClick={() => go(-1)}
+                        whileTap={{ scale: 0.9 }}
+                      >
+                        <ChevronLeft size={20} className="text-white" />
+                      </motion.button>
+                    )}
+                    {hasNext && (
+                      <motion.button
+                        className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 border-none flex items-center justify-center cursor-pointer"
+                        onClick={() => go(1)}
+                        whileTap={{ scale: 0.9 }}
+                      >
+                        <ChevronRight size={20} className="text-white" />
+                      </motion.button>
+                    )}
+                  </div>
+                  {sorted.length > 1 && (
+                    <div className="flex justify-center gap-1.5 mt-2.5">
+                      {sorted.map((s, i) => (
+                        <div key={s.url} className={`h-1.5 rounded-full transition-all ${i === idx ? 'w-4 bg-white' : 'w-1.5 bg-white/30'}`} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Food list */}
             <div className="flex-1 overflow-y-auto px-4 pb-[max(env(safe-area-inset-bottom),16px)]">

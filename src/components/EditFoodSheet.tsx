@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Drumstick, Wheat, Droplet, Leaf, Trash2 } from 'lucide-react';
+import { Drumstick, Wheat, Droplet, Leaf, Trash2, X } from 'lucide-react';
 import { FoodLogEntry, FoodLibraryItem } from '@/lib/types';
 import { calculateNutrition, scaleNutritionFromEntry, getQuantityWarning } from '@/lib/nutrition';
 import { fetchFoodLibraryItem } from '@/lib/supabase-data';
@@ -50,6 +50,10 @@ export default function EditFoodSheet({ entry, onClose, onSave, onDelete }: Edit
   const [mealType, setMealType] = useState<typeof mealTypes[number]>('snack');
   const [lastEntryId, setLastEntryId] = useState<string | null>(null);
   const [libraryItem, setLibraryItem] = useState<FoodLibraryItem | null>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  // Only let the sheet drag-dismiss when its scrollable body is at the top,
+  // so an upward content scroll isn't hijacked by the drag gesture.
+  const [canDrag, setCanDrag] = useState(true);
 
   if (entry && entry.id !== lastEntryId) {
     setQuantity(entry.quantity_g);
@@ -127,12 +131,27 @@ export default function EditFoodSheet({ entry, onClose, onSave, onDelete }: Edit
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+            drag="y"
+            dragListener={canDrag}
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0, bottom: 0.6 }}
+            onDragEnd={(_, info) => {
+              if (info.offset.y > 120 || info.velocity.y > 600) onClose();
+            }}
           >
-            {/* Handle */}
-            <div className="w-9 h-1 bg-bg-tertiary rounded-full mx-auto mt-2.5 flex-shrink-0" />
+            {/* Handle — always drag-dismissable */}
+            <div
+              className="pt-2.5 pb-1 flex-shrink-0 cursor-grab active:cursor-grabbing"
+              onPointerDown={() => setCanDrag(true)}
+            >
+              <div className="w-9 h-1 bg-bg-tertiary rounded-full mx-auto" />
+            </div>
 
             {/* Body */}
-            <div className="flex-1 overflow-y-auto px-6 pt-4 pb-2 scrollbar-none">
+            <div
+              ref={bodyRef}
+              onPointerDown={() => setCanDrag((bodyRef.current?.scrollTop ?? 0) <= 0)}
+              className="flex-1 overflow-y-auto px-6 pt-4 pb-2 scrollbar-none">
               {/* Header: initial + name */}
               <motion.div
                 className="flex items-center gap-3 mb-6"
@@ -142,6 +161,14 @@ export default function EditFoodSheet({ entry, onClose, onSave, onDelete }: Edit
               >
                 <EditFoodThumbnail imageUrl={entry.image_url} name={entry.food_name} />
                 <span className="text-[22px] font-medium flex-1">{entry.food_name}</span>
+                <motion.button
+                  onClick={onClose}
+                  className="w-8 h-8 rounded-full bg-bg-secondary border-none flex items-center justify-center text-text-secondary cursor-pointer flex-shrink-0"
+                  whileTap={{ scale: 0.9 }}
+                  aria-label="Close"
+                >
+                  <X size={18} />
+                </motion.button>
               </motion.div>
 
               {/* Quantity */}
