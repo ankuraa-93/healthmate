@@ -49,7 +49,7 @@ Instructions:
 
 - ~~user can upload an image of the food, pick the meal it belongs. the app automatically identifies the food and estimates the quantity and logs it (sync if its fast without compromising accuracy, async otherwise)~~ - Completed ✅
 - onboarding flow to set personalised targets based on goals
-- improve signup/in experience: single textbox to enter email which figures new vs existing user. also, sign in automatically after signup.
+- ~~improve signup/in experience: single textbox to enter email which figures new vs existing user. also, sign in automatically after signup.~~ - Completed ✅
 - ~~Processing state UX — replace spinning loader on processing photos with a static indicator (less distracting). Remove photo from meal section during processing; keep it only in photo tray. Show "Identifying foods from X photos" text in meal section instead.~~ - Completed ✅
 - ~~Option to delete a processing/failed photo from the photo tray with an "are you sure?" confirmation prompt~~ - Completed ✅
 - ~~Inline food editing on photo view — when user taps a food item in the processed photo view, expand the card inline (chevron + edit controls like the log food flow) instead of opening a separate bottom sheet. Keeps the photo in view while editing.~~ - Completed ✅

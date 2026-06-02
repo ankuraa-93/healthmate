@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Pencil } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
 
 export default function AuthPage() {
+  const [emailSubmitted, setEmailSubmitted] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -16,8 +17,47 @@ export default function AuthPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showForgot, setShowForgot] = useState(false);
   const router = useRouter();
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (emailSubmitted) {
+      setTimeout(() => passwordRef.current?.focus(), 350);
+    }
+  }, [emailSubmitted]);
+
+  const handleEmailContinue = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setLoading(true);
+
+    try {
+      const res = await fetch('/api/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      const { exists } = await res.json();
+      setIsSignUp(!exists);
+    } catch {
+      setIsSignUp(false);
+    }
+
+    setLoading(false);
+    setEmailSubmitted(true);
+  };
+
+  const handleBack = () => {
+    setEmailSubmitted(false);
+    setError('');
+    setSuccess('');
+    setPassword('');
+    setConfirmPassword('');
+    setIsSignUp(false);
+    setTimeout(() => emailRef.current?.focus(), 50);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,12 +77,19 @@ export default function AuthPage() {
     const supabase = createClient();
 
     if (isSignUp) {
-      const { error } = await supabase.auth.signUp({ email, password });
+      const { data, error } = await supabase.auth.signUp({ email, password });
       if (error) {
         setError(error.message);
         setLoading(false);
         return;
       }
+      if (data.session) {
+        router.push('/');
+        router.refresh();
+        return;
+      }
+      setSuccess('Check your email to confirm your account');
+      setLoading(false);
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
@@ -50,17 +97,12 @@ export default function AuthPage() {
         setLoading(false);
         return;
       }
+      router.push('/');
+      router.refresh();
     }
-
-    router.push('/');
-    router.refresh();
   };
 
   const handleForgotPassword = async () => {
-    if (!email) {
-      setError('Enter your email first');
-      return;
-    }
     setError('');
     setLoading(true);
     const supabase = createClient();
@@ -93,126 +135,165 @@ export default function AuthPage() {
               <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
             </svg>
           </motion.div>
-          <h1 className="text-2xl font-semibold">Calorrific</h1>
-          <p className="text-text-secondary text-sm mt-1">Accurate tracking in seconds, not minutes</p>
-        </div>
-
-        {/* Toggle */}
-        <div className="flex bg-bg-secondary rounded-xl p-1 mb-6">
-          {['Sign In', 'Sign Up'].map((label, i) => {
-            const active = i === 0 ? !isSignUp : isSignUp;
-            return (
-              <button
-                key={label}
-                onClick={() => { setIsSignUp(i === 1); setError(''); setSuccess(''); }}
-                className={`flex-1 py-2.5 rounded-lg text-sm font-medium border-none cursor-pointer transition-all ${
-                  active
-                    ? 'bg-bg-primary text-text-primary shadow-sm'
-                    : 'bg-transparent text-text-secondary'
-                }`}
+          <motion.h1
+            className="text-2xl font-semibold"
+            layout
+          >
+            {emailSubmitted ? (isSignUp ? 'Welcome!' : 'Hello again!') : 'Calorrific'}
+          </motion.h1>
+          <AnimatePresence>
+            {!emailSubmitted && (
+              <motion.p
+                className="text-text-secondary text-sm mt-1"
+                initial={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2 }}
               >
-                {label}
-              </button>
-            );
-          })}
+                Accurate tracking in seconds, not minutes
+              </motion.p>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Error */}
-        {error && (
-          <motion.div
-            className="bg-destructive/10 text-destructive text-sm rounded-xl px-4 py-3 mb-4"
-            initial={{ opacity: 0, y: -5 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            {error}
-          </motion.div>
-        )}
+        <AnimatePresence mode="wait">
+          {error && (
+            <motion.div
+              key="error"
+              className="bg-destructive/10 text-destructive text-sm rounded-xl px-4 py-3 mb-4"
+              initial={{ opacity: 0, y: -5 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -5 }}
+            >
+              {error}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Success */}
-        {success && (
-          <motion.div
-            className="bg-accent/10 text-accent text-sm rounded-xl px-4 py-3 mb-4"
-            initial={{ opacity: 0, y: -5 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            {success}
-          </motion.div>
-        )}
+        <AnimatePresence mode="wait">
+          {success && (
+            <motion.div
+              key="success"
+              className="bg-accent/10 text-accent text-sm rounded-xl px-4 py-3 mb-4"
+              initial={{ opacity: 0, y: -5 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -5 }}
+            >
+              {success}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full bg-bg-secondary border-none rounded-xl px-4 py-3.5 text-base text-text-primary outline-none placeholder:text-text-tertiary focus:ring-2 focus:ring-accent/25 transition-shadow"
-            required
-          />
+        <form onSubmit={emailSubmitted ? handleSubmit : handleEmailContinue} className="flex flex-col gap-3">
+          {/* Email field */}
           <div className="relative">
             <input
-              type={showPassword ? 'text' : 'password'}
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-bg-secondary border-none rounded-xl px-4 py-3.5 pr-11 text-base text-text-primary outline-none placeholder:text-text-tertiary focus:ring-2 focus:ring-accent/25 transition-shadow"
+              ref={emailRef}
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              disabled={emailSubmitted}
+              className={`w-full bg-bg-secondary border-none rounded-xl px-4 py-3.5 text-base text-text-primary outline-none transition-shadow ${
+                emailSubmitted
+                  ? 'pr-11 opacity-60'
+                  : 'placeholder:text-text-tertiary focus:ring-2 focus:ring-accent/25'
+              }`}
               required
+              autoFocus
             />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer p-0.5 text-text-tertiary"
-            >
-              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-            </button>
+            {emailSubmitted && (
+              <button
+                type="button"
+                onClick={handleBack}
+                className="absolute right-3 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer p-0.5 text-text-tertiary hover:text-text-secondary transition-colors"
+              >
+                <Pencil size={16} />
+              </button>
+            )}
           </div>
-          <AnimatePresence initial={false}>
-            {isSignUp && (
+
+          {/* Password fields — animate in */}
+          <AnimatePresence>
+            {emailSubmitted && (
               <motion.div
-                key="confirm-password"
-                className="relative overflow-hidden"
+                className="flex flex-col gap-3"
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.2, ease: 'easeInOut' }}
+                transition={{ duration: 0.3, ease: 'easeOut' }}
               >
-                <input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  placeholder="Confirm Password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full bg-bg-secondary border-none rounded-xl px-4 py-3.5 pr-11 text-base text-text-primary outline-none placeholder:text-text-tertiary focus:ring-2 focus:ring-accent/25 transition-shadow"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer p-0.5 text-text-tertiary"
-                >
-                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
+                <div className="relative">
+                  <input
+                    ref={passwordRef}
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder={isSignUp ? 'Set password' : 'Password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full bg-bg-secondary border-none rounded-xl px-4 py-3.5 pr-11 text-base text-text-primary outline-none placeholder:text-text-tertiary focus:ring-2 focus:ring-accent/25 transition-shadow"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer p-0.5 text-text-tertiary"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+
+                {isSignUp && (
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      placeholder="Confirm password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full bg-bg-secondary border-none rounded-xl px-4 py-3.5 pr-11 text-base text-text-primary outline-none placeholder:text-text-tertiary focus:ring-2 focus:ring-accent/25 transition-shadow"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer p-0.5 text-text-tertiary"
+                    >
+                      {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* CTA button */}
           <motion.button
             type="submit"
             disabled={loading}
             className="w-full bg-accent text-white border-none rounded-xl py-3.5 text-base font-medium cursor-pointer mt-2 disabled:opacity-60"
             whileTap={{ scale: 0.97 }}
+            layout
           >
-            {loading ? 'Please wait...' : isSignUp ? 'Create Account' : 'Sign In'}
+            {loading
+              ? 'Please wait...'
+              : !emailSubmitted
+                ? 'Continue'
+                : isSignUp
+                  ? 'Create Account'
+                  : 'Sign In'}
           </motion.button>
         </form>
 
-        <AnimatePresence initial={false}>
-          {!isSignUp && (
+        {/* Forgot password (sign-in only) */}
+        <AnimatePresence>
+          {emailSubmitted && !isSignUp && (
             <motion.div
-              key="forgot-password"
               className="overflow-hidden"
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.2, ease: 'easeInOut' }}
+              transition={{ duration: 0.2 }}
             >
               <button
                 onClick={handleForgotPassword}
