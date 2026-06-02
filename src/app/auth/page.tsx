@@ -39,10 +39,19 @@ export default function AuthPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim() }),
       });
-      const { exists } = await res.json();
-      setIsSignUp(!exists);
+      const data = await res.json();
+      if (!res.ok || typeof data.exists !== 'boolean') {
+        // Don't guess new-vs-existing on a failed check — that's how a
+        // registered email gets mistaken for new. Keep them here.
+        setError("Couldn't verify your email. Please try again.");
+        setLoading(false);
+        return;
+      }
+      setIsSignUp(!data.exists);
     } catch {
-      setIsSignUp(false);
+      setError("Couldn't verify your email. Please try again.");
+      setLoading(false);
+      return;
     }
 
     setLoading(false);
