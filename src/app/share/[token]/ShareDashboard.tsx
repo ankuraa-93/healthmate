@@ -21,6 +21,7 @@ interface SharedEntry {
   fibre: number | null;
   meal_type: string;
   unit: string;
+  input_source: string | null;
   image_url: string | null;
 }
 
@@ -60,7 +61,7 @@ function toFoodLogEntry(e: SharedEntry, loggedDate: string): FoodLogEntry {
     status: 'confirmed',
     meal_type: e.meal_type as FoodLogEntry['meal_type'],
     unit: e.unit as FoodLogEntry['unit'],
-    input_source: 'text',
+    input_source: (e.input_source as FoodLogEntry['input_source']) ?? 'text',
     source_image_url: null,
     created_at: '',
     updated_at: '',

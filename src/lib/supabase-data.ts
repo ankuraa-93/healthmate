@@ -72,7 +72,7 @@ export async function insertFoodLog(entry: Omit<FoodLogEntry, 'id' | 'created_at
 }
 
 export async function updateFoodLog(id: string, updates: Partial<Pick<FoodLogEntry,
-  'quantity_g' | 'calories' | 'protein' | 'carbs' | 'fat' | 'fibre' | 'meal_type' | 'status' | 'food_library_id'
+  'quantity_g' | 'calories' | 'protein' | 'carbs' | 'fat' | 'fibre' | 'meal_type' | 'status' | 'food_library_id' | 'food_name' | 'unit'
 >>): Promise<FoodLogEntry | null> {
   const { data, error } = await supabase
     .from('food_log')

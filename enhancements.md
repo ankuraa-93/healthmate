@@ -55,7 +55,7 @@ Instructions:
 - ~~Inline food editing on photo view — when user taps a food item in the processed photo view, expand the card inline (chevron + edit controls like the log food flow) instead of opening a separate bottom sheet. Keeps the photo in view while editing.~~ - Completed ✅
 - ~~Gemini quantity overestimation — image-based estimates tend to be 10-20% high. Add calibration guidance in the vision system prompt to lean toward conservative/lower-bound portion estimates rather than applying a blanket multiplier.~~ - Completed ✅
 - ~~Resilient image processing — handle Gemini failures (503 overload, rate limits, transient errors) gracefully. Options: fallback to a secondary model (e.g. gemini-2.0-flash), or a retry cron job that picks up failed/stuck processing jobs and reprocesses them on a schedule. Goal: no photo should silently fail — user should always get results, even if delayed.~~ - Completed ✅
-- user should be able to edit foods identified from photos (keeping them linked to the photo but with an option to replace in case of wrong ID)
+- ~~user should be able to edit foods identified from photos (keeping them linked to the photo but with an option to replace in case of wrong ID)~~ - Completed ✅ ("Incorrect? Replace this food" CTA in the gallery card and the edit sheet's "Identified from image" card; opens Log Food in replace mode — text/voice → Gemini → updates the entry in place keeping its photo link, id and meal; two-card success screen (old struck-through + cross, new with tick/spinner + editable quantity); meal type locked for photo-identified foods with an explainer)
 - ~~photos should be visible on the shareable link~~ - Completed ✅
 - ~~photos in gallery can be 50% bigger with option to go left and right (arrow buttons as well swipe gestures)~~ - Completed ✅ (sized at 30% bigger per follow-up; added arrow buttons, swipe gestures, and dot indicators; applied to both logger dashboard and share viewer)
 - ~~give option on log food screen at the time of entry to select the meal they want to log the foods under (can be blank if someone is trying to log multiple meal foods together in which Gemini will auto detect). if user picks an option, we should put all foods identified in that instance under the selected meal.~~ - Completed ✅ (meal pill row in input bar with "Auto" default; overrides meal for all text/voice foods in the entry and seeds the photo-review default; subtle green-tint selected style)
@@ -64,6 +64,7 @@ Instructions:
 - ~~Photo tray on dashboard ordered by meal type (Breakfast → Lunch → Snack → Dinner)~~ - Completed ✅
 - ~~Fix full-screen overlays escaping the 428px mobile frame on desktop — photo gallery, photo review sheet, and processing-photo viewer switched from `fixed inset-0` to `absolute inset-0`~~ - Completed ✅
 - ~~Fix processing-photo delete button truncation (clipped by tray's overflow-x); added top padding and restyled to bottom-sheet close button~~ - Completed ✅
+- ~~Camera badge on photo-identified foods missing on the share viewer — RPC now returns `input_source` and `toFoodLogEntry` maps it (logger/viewer consistency)~~ - Completed ✅
 
 ---
 

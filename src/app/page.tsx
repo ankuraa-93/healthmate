@@ -77,6 +77,9 @@ export default function DashboardPage() {
   const [expandedJob, setExpandedJob] = useState<ProcessingJob | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<FoodLogEntry | null>(null);
+  // Replace-food flow: the entry being replaced + where to return when done.
+  const [replaceTarget, setReplaceTarget] = useState<{ entry: FoodLogEntry; imageUrl: string | null } | null>(null);
+  const [replaceReturn, setReplaceReturn] = useState<{ type: 'gallery'; url: string } | { type: 'edit'; entryId: string } | null>(null);
   const [toast, setToast] = useState<{
     visible: boolean;
     message: string;
@@ -320,6 +323,37 @@ export default function DashboardPage() {
   const handleSwipeDelete = useCallback((entryId: string) => {
     handleDeleteWithUndo(entryId);
   }, [handleDeleteWithUndo]);
+
+  // --- Replace food flow ---
+
+  const handleEditReplace = (entry: FoodLogEntry) => {
+    setReplaceReturn({ type: 'edit', entryId: entry.id });
+    setReplaceTarget({ entry, imageUrl: entry.source_image_url ?? entry.image_url ?? null });
+    setEditingEntry(null);
+  };
+
+  const handleGalleryReplace = (entry: FoodLogEntry, photoUrl: string) => {
+    setReplaceReturn({ type: 'gallery', url: photoUrl });
+    setReplaceTarget({ entry, imageUrl: photoUrl });
+    setExpandedPhoto(null);
+    setExpandedPhotoFoodIdx(null);
+  };
+
+  const handleReplaced = (updated: FoodLogEntry) => {
+    setLogs(prev => prev.map(l => l.id === updated.id ? updated : l));
+  };
+
+  // Done from the replace sheet. From the gallery, return to the photo viewer
+  // (now showing the new food). From the edit sheet, just go back to the dashboard.
+  const handleReplaceClose = () => {
+    const ret = replaceReturn;
+    setReplaceTarget(null);
+    setReplaceReturn(null);
+    if (ret?.type === 'gallery') {
+      const img = sourceImages.find(s => s.url === ret.url);
+      if (img) { setExpandedPhotoFoodIdx(null); setExpandedPhoto(img); }
+    }
+  };
 
   const handleSuggestionAdd = useCallback(async (item: SuggestedFood) => {
     if (!user) return;
@@ -796,12 +830,14 @@ export default function DashboardPage() {
       <FAB onClick={() => !editingEntry && setSheetOpen(true)} />
 
       <AddFoodSheet
-        open={sheetOpen}
-        onClose={handleSheetClose}
+        open={sheetOpen || !!replaceTarget}
+        onClose={replaceTarget ? handleReplaceClose : handleSheetClose}
         userId={user?.id ?? ''}
         logDate={formatDate(selectedDate)}
         onToast={showToast}
         onPhotosSubmitted={handlePhotosSubmitted}
+        replaceTarget={replaceTarget}
+        onReplaced={handleReplaced}
       />
 
       {/* Photo detail view */}
@@ -1001,6 +1037,16 @@ export default function DashboardPage() {
                                     </motion.button>
                                   ))}
                                 </div>
+                                <motion.button
+                                  onClick={() => handleGalleryReplace(entry, expandedPhoto.url)}
+                                  className="flex items-center justify-between w-full mt-3 px-3.5 py-2.5 rounded-xl bg-white/5 border-none cursor-pointer"
+                                  whileTap={{ scale: 0.98 }}
+                                >
+                                  <span className="text-[13px] text-white/50">Incorrect?</span>
+                                  <span className="text-[13px] text-white/50 underline decoration-dashed decoration-white/40 underline-offset-[3px]">
+                                    Replace this food
+                                  </span>
+                                </motion.button>
                               </div>
                             </motion.div>
                           )}
@@ -1085,6 +1131,7 @@ export default function DashboardPage() {
         onClose={() => setEditingEntry(null)}
         onSave={handleEditSave}
         onDelete={handleEditDelete}
+        onReplace={handleEditReplace}
       />
 
       {/* Confirmation dialog for deleting/retrying processing jobs */}

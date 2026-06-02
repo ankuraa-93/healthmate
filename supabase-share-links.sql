@@ -73,6 +73,7 @@ BEGIN
           'fibre', f.fibre,
           'meal_type', f.meal_type,
           'unit', f.unit,
+          'input_source', f.input_source,
           'image_url', fl.image_url
         ) ORDER BY f.created_at
       )

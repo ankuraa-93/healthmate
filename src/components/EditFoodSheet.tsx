@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Drumstick, Wheat, Droplet, Leaf, Trash2, X } from 'lucide-react';
+import { Drumstick, Wheat, Droplet, Leaf, Trash2, X, Info } from 'lucide-react';
 import { FoodLogEntry, FoodLibraryItem } from '@/lib/types';
 import { calculateNutrition, scaleNutritionFromEntry, getQuantityWarning } from '@/lib/nutrition';
 import { fetchFoodLibraryItem } from '@/lib/supabase-data';
@@ -40,12 +40,13 @@ interface EditFoodSheetProps {
     meal_type: 'breakfast' | 'lunch' | 'dinner' | 'snack';
   }) => void;
   onDelete: (entryId: string) => void;
+  onReplace?: (entry: FoodLogEntry) => void;
 }
 
 const mealTypes = ['breakfast', 'lunch', 'snack', 'dinner'] as const;
 const adjustments = [-50, -10, +10, +50];
 
-export default function EditFoodSheet({ entry, onClose, onSave, onDelete }: EditFoodSheetProps) {
+export default function EditFoodSheet({ entry, onClose, onSave, onDelete, onReplace }: EditFoodSheetProps) {
   const [quantity, setQuantity] = useState(0);
   const [mealType, setMealType] = useState<typeof mealTypes[number]>('snack');
   const [lastEntryId, setLastEntryId] = useState<string | null>(null);
@@ -78,6 +79,8 @@ export default function EditFoodSheet({ entry, onClose, onSave, onDelete }: Edit
   }, [currentLibraryId]);
 
   const unitLabel = entry?.unit === 'ml' ? 'ml' : 'g';
+  // Photo-identified foods are tied to the photo's meal — don't allow changing it.
+  const mealLocked = entry?.input_source === 'image';
 
   const nutrition = useMemo(() => {
     if (!entry) return { calories: 0, protein: 0, carbs: 0, fat: 0, fibre: 0 };
@@ -171,6 +174,34 @@ export default function EditFoodSheet({ entry, onClose, onSave, onDelete }: Edit
                 </motion.button>
               </motion.div>
 
+              {/* Identified from a photo — offer to replace */}
+              {onReplace && entry.source_image_url && (
+                <motion.div
+                  className="flex items-center gap-3 mb-5 p-3 rounded-xl bg-bg-secondary"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.12 }}
+                >
+                  <img
+                    src={entry.source_image_url}
+                    alt="Source"
+                    className="w-14 h-14 rounded-xl object-cover flex-shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[12px] font-medium text-text-tertiary uppercase tracking-wide">Identified from image</div>
+                    <div className="text-[13px] mt-0.5">
+                      <span className="text-text-secondary">Incorrect? </span>
+                      <button
+                        onClick={() => onReplace(entry)}
+                        className="text-text-secondary underline decoration-dashed decoration-text-tertiary underline-offset-[3px] bg-transparent border-none cursor-pointer p-0"
+                      >
+                        Replace this food
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
               {/* Quantity */}
               <motion.div
                 className="mb-5"
@@ -241,18 +272,25 @@ export default function EditFoodSheet({ entry, onClose, onSave, onDelete }: Edit
                   {mealTypes.map((type) => (
                     <motion.button
                       key={type}
-                      onClick={() => setMealType(type)}
-                      className={`flex-1 rounded-full py-2 text-[13px] font-medium border-none cursor-pointer capitalize transition-colors ${
+                      onClick={() => { if (!mealLocked) setMealType(type); }}
+                      disabled={mealLocked}
+                      className={`flex-1 rounded-full py-2 text-[13px] font-medium border-none capitalize transition-colors ${
                         mealType === type
                           ? 'bg-accent text-white'
                           : 'bg-bg-secondary text-text-secondary'
-                      }`}
-                      whileTap={{ scale: 0.95 }}
+                      } ${mealLocked ? `cursor-default ${mealType === type ? '' : 'opacity-40'}` : 'cursor-pointer'}`}
+                      whileTap={mealLocked ? undefined : { scale: 0.95 }}
                     >
                       {type}
                     </motion.button>
                   ))}
                 </div>
+                {mealLocked && (
+                  <div className="flex items-center gap-2 mt-2.5 px-3 py-2 rounded-lg bg-bg-secondary text-[12px] text-text-tertiary">
+                    <Info size={13} className="flex-shrink-0" />
+                    <span>Edit meal linked to the image to modify</span>
+                  </div>
+                )}
               </motion.div>
 
               {/* Nutrition preview */}
@@ -281,6 +319,7 @@ export default function EditFoodSheet({ entry, onClose, onSave, onDelete }: Edit
                   ))}
                 </div>
               </motion.div>
+
             </div>
 
             {/* Bottom: Save */}

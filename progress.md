@@ -824,3 +824,21 @@ A batch of photo/sheet UX improvements following the share-photos work.
 
 ### Note
 No DB/Supabase changes in this batch — frontend only. Safe to deploy without running SQL.
+
+## Session: 2026-06-03 (cont.) — Replace food from photo + share-viewer camera badge
+
+### Replace-food-from-photo (v2 bullet 58 — done)
+- Entry points: "Incorrect? Replace this food" CTA (grey, dashed-underline) in the gallery expanded card and in the Edit Food sheet's "IDENTIFIED FROM IMAGE" card (shown only for `input_source === 'image'`, with a 56px source-photo thumbnail).
+- Flow: opens the Log Food sheet in **replace mode** (`AddFoodSheet` props `replaceTarget` + `onReplaced`). Title "Replace Food", shows the food being replaced, meal pills + camera hidden, textbox + voice kept. Input → parse-food → match-food → `updateFoodLog` updates the existing entry in place (keeps id, meal_type, source_image_url; keeps original quantity, swaps food/nutrition/unit). Extended `updateFoodLog` to allow `food_name` + `unit`.
+- Success screen: two cards — old (dimmed, struck-through, ✕, not editable) → ↓ → new (✓ tick that flips to spinner on save, chevron to expand + edit quantity, optimistic). Done returns to the gallery photo viewer (gallery-initiated) or to the dashboard (edit-initiated, per user request).
+- Meal type **locked** for photo-identified foods in the Edit sheet (chips disabled/dimmed) + message box "Edit meal linked to the image to modify".
+
+### Share-viewer consistency
+- Camera badge on photo foods was missing on the share link: `get_shared_log` RPC now returns `input_source`, and `ShareDashboard.toFoodLogEntry` maps it (was hardcoded 'text'). **Requires re-running `supabase-share-links.sql`** (user already ran it).
+- Saved memory `feedback_logger_viewer_consistency` — keep logger and viewer consistent; watch RPC + toFoodLogEntry for dropped fields.
+
+### Voice: attempted mic-on-open fix, REVERTED
+- User reported iOS shows "mic in use" on Log Food open (caused by open-time getUserMedia pre-warm). Tried removing pre-warm + warming at record-start + releasing mic after recording → **reintroduced first-word truncation** (cold getUserMedia at tap). Reverted to original pre-warm-on-open. Documented as a settled trade-off in `feedback_voice_architecture` (pre-warm required; brief iOS indicator on open is accepted).
+
+### Note
+DB change this session: `get_shared_log` RPC gained `input_source` (re-run the SQL). No other schema changes.

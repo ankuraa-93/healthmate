@@ -2,11 +2,18 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mic, ArrowUp, X, Check, ChevronDown, Trash2, Loader2, Camera } from 'lucide-react';
+import { Mic, ArrowUp, X, Check, ChevronDown, Trash2, Loader2, Camera, ArrowDown } from 'lucide-react';
 import { insertFoodLog, deleteFoodLog, updateFoodLog } from '@/lib/supabase-data';
 import { processImage } from '@/lib/image-utils';
-import { getQuantityWarning } from '@/lib/nutrition';
+import { getQuantityWarning, scaleNutritionFromEntry } from '@/lib/nutrition';
+import { FoodLogEntry } from '@/lib/types';
 import PhotoReviewSheet, { ReviewPhoto } from './PhotoReviewSheet';
+
+// Target passed when the sheet opens in "replace" mode (swap a wrongly-identified food).
+export interface ReplaceTarget {
+  entry: FoodLogEntry;
+  imageUrl: string | null;
+}
 
 // --- Types ---
 
@@ -33,6 +40,8 @@ interface AddFoodSheetProps {
   logDate: string;
   onToast?: (message: string) => void;
   onPhotosSubmitted?: (photos: ReviewPhoto[]) => void;
+  replaceTarget?: ReplaceTarget | null;
+  onReplaced?: (updated: FoodLogEntry) => void;
 }
 
 // --- Helpers ---
@@ -87,7 +96,8 @@ function getDefaultMealType(): 'breakfast' | 'lunch' | 'dinner' | 'snack' {
   return 'snack';
 }
 
-function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitted }: Omit<AddFoodSheetProps, 'open'>) {
+function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitted, replaceTarget, onReplaced }: Omit<AddFoodSheetProps, 'open'>) {
+  const isReplace = !!replaceTarget;
   const [input, setInput] = useState('');
   const [trayItems, setTrayItems] = useState<TrayItem[]>([]);
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
@@ -107,6 +117,10 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
   const [canDrag, setCanDrag] = useState(true);
   // Meal override for this entry. null = let Gemini auto-detect per food.
   const [selectedMeal, setSelectedMeal] = useState<'breakfast' | 'lunch' | 'dinner' | 'snack' | null>(null);
+  // Replace-mode success: holds the old + new entries once swapped.
+  const [replaced, setReplaced] = useState<{ old: FoodLogEntry; entry: FoodLogEntry } | null>(null);
+  const [replacedExpanded, setReplacedExpanded] = useState(false);
+  const [replacedSaving, setReplacedSaving] = useState(false);
 
   const hasContent = input.trim().length > 0;
   const micSupported = typeof window !== 'undefined' && typeof MediaRecorder !== 'undefined' && getAudioMimeType() !== '';
@@ -140,7 +154,81 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
 
   const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 
+  // Replace mode: parse the user's correction, match it, then update the existing
+  // entry in place — keeping its id, meal_type, source_image_url and quantity.
+  const handleReplaceSubmit = async () => {
+    if (!hasContent || loadingMessage || !replaceTarget) return;
+    const text = input.trim();
+    setInput('');
+    setLoadingMessage('Identifying food...');
+
+    try {
+      const parseRes = await fetch('/api/parse-food', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, currentHour: new Date().getHours() }),
+      });
+      if (!parseRes.ok) throw new Error((await parseRes.json().catch(() => ({}))).error || 'Parse failed');
+      const parsed = await parseRes.json();
+
+      const matchRes = await fetch('/api/match-food', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: parsed.items }),
+      });
+      if (!matchRes.ok) throw new Error((await matchRes.json().catch(() => ({}))).error || 'Match failed');
+      const matched = await matchRes.json();
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const item = matched.items?.[0] as any;
+      if (!item) throw new Error('Could not identify a food');
+
+      setLoadingMessage('Replacing...');
+      const target = replaceTarget.entry;
+      const qty = target.quantity_g; // keep the original portion — only the identity was wrong
+      const ratio = qty / 100;
+      const updated = await updateFoodLog(target.id, {
+        food_library_id: item.matched_library_id ?? null,
+        food_name: item.matched_library_name || item.name,
+        quantity_g: qty,
+        calories: Math.round(item.calories_per_100g * ratio),
+        protein: Math.round(item.protein_per_100g * ratio),
+        carbs: Math.round(item.carbs_per_100g * ratio),
+        fat: Math.round(item.fat_per_100g * ratio),
+        fibre: Math.round(item.fibre_per_100g * ratio),
+        unit: (item.unit === 'ml' ? 'ml' : 'g'),
+      });
+      if (!updated) throw new Error('Replace failed');
+
+      const merged = { ...updated, image_url: item.image_url ?? null };
+      onReplaced?.(merged);
+      await delay(300);
+      setReplaced({ old: target, entry: merged });
+    } catch (error) {
+      console.error('Replace error:', error);
+      onToast?.('Failed to replace food — try again');
+    } finally {
+      setLoadingMessage(null);
+    }
+  };
+
+  // Edit quantity from the replace-success card. Optimistic, and flips the tick
+  // to a spinner and back (like the Log Food tray) while the save is in flight.
+  const updateReplacedQty = async (newQty: number) => {
+    if (!replaced) return;
+    const entry = replaced.entry;
+    const qty = Math.min(Math.max(newQty, 1), 9999);
+    const nutrition = scaleNutritionFromEntry(qty, entry);
+    setReplaced(r => (r ? { ...r, entry: { ...r.entry, quantity_g: qty, ...nutrition } } : r));
+    setReplacedSaving(true);
+    const updated = await updateFoodLog(entry.id, { quantity_g: qty, ...nutrition });
+    if (updated) onReplaced?.({ ...updated, image_url: entry.image_url ?? null });
+    await delay(300);
+    setReplacedSaving(false);
+  };
+
   const handleTextSubmit = async () => {
+    if (isReplace) { handleReplaceSubmit(); return; }
     if (!hasContent || loadingMessage) return;
     const text = input.trim();
     setInput('');
@@ -330,6 +418,9 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
     fileInputRef.current?.click();
   };
 
+  // Pre-warm the mic on open: getUserMedia has high cold-start latency, so without
+  // this the first word is clipped when a user taps voice and speaks immediately.
+  // Trade-off: iOS briefly shows the "mic in use" indicator on sheet open.
   useEffect(() => {
     if (micSupported) {
       navigator.mediaDevices.getUserMedia({ audio: true })
@@ -379,7 +470,7 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-4 flex-shrink-0">
-          <span className="text-[22px] font-medium">Log Food</span>
+          <span className="text-[22px] font-medium">{isReplace ? 'Replace Food' : 'Log Food'}</span>
           <div className="flex items-center gap-2">
             {trayItems.length > 0 ? (
               <motion.button
@@ -403,11 +494,142 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
           </div>
         </div>
 
+        {replaced ? (
+          /* ── Replace success: show new dish as an editable card ── */
+          <div className="flex-1 flex flex-col">
+            <div className="flex-1 overflow-y-auto px-6 pt-4 scrollbar-none">
+              {/* Old food — struck through, cross icon, not editable */}
+              {(() => {
+                const o = replaced.old;
+                const unitLabel = o.unit === 'ml' ? 'ml' : 'g';
+                return (
+                  <div className="rounded-xl overflow-hidden opacity-75" style={{ backgroundColor: 'var(--color-card-bg)' }}>
+                    <div className="p-3 px-3.5">
+                      <div className="flex items-center gap-3">
+                        <FoodThumbnail imageUrl={o.image_url} name={o.food_name} />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[14px] font-medium leading-snug flex items-center gap-1.5 text-text-tertiary">
+                            <span className="line-through">{o.food_name}</span>
+                            <X size={14} className="flex-shrink-0" />
+                          </div>
+                          <div className="flex items-baseline justify-between gap-2 mt-px text-[13px] text-text-tertiary">
+                            <span className="whitespace-nowrap">{o.quantity_g}{unitLabel} &middot; {o.calories} cal</span>
+                            <span className="whitespace-nowrap">P:{o.protein} C:{o.carbs} F:{o.fat} Fi:{o.fibre}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="flex justify-center py-1.5 text-text-tertiary">
+                <ArrowDown size={16} />
+              </div>
+
+              {/* New food — editable card with tick/spinner */}
+              {(() => {
+                const e = replaced.entry;
+                const unitLabel = e.unit === 'ml' ? 'ml' : 'g';
+                return (
+                  <div className="rounded-xl overflow-hidden" style={{ backgroundColor: 'var(--color-card-bg)' }}>
+                    <div className="p-3 px-3.5 cursor-pointer" onClick={() => setReplacedExpanded(v => !v)}>
+                      <div className="flex items-center gap-3">
+                        <FoodThumbnail imageUrl={e.image_url} name={e.food_name} />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[14px] font-medium leading-snug flex items-center gap-1.5">
+                            {e.food_name}
+                            {replacedSaving ? (
+                              <Loader2 size={14} className="text-accent animate-spin flex-shrink-0" />
+                            ) : (
+                              <Check size={14} className="text-accent flex-shrink-0" />
+                            )}
+                          </div>
+                          <div className="flex items-baseline justify-between gap-2 mt-px text-[13px] text-text-secondary">
+                            <span className="whitespace-nowrap">{e.quantity_g}{unitLabel} &middot; {e.calories} cal</span>
+                            <span className="whitespace-nowrap">P:{e.protein} C:{e.carbs} F:{e.fat} Fi:{e.fibre}</span>
+                          </div>
+                        </div>
+                        <motion.div
+                          className="flex-shrink-0 text-text-tertiary"
+                          animate={{ rotate: replacedExpanded ? 180 : 0 }}
+                          transition={{ duration: 0.25 }}
+                        >
+                          <ChevronDown size={14} />
+                        </motion.div>
+                      </div>
+
+                      <AnimatePresence>
+                        {replacedExpanded && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.25 }}
+                            className="overflow-hidden"
+                            onClick={ev => ev.stopPropagation()}
+                          >
+                            <div className="mt-3 pt-2.5 border-t border-bg-tertiary/50">
+                              <div className="flex items-center bg-bg-primary rounded-xl px-3.5 py-2.5 mb-2.5 focus-within:ring-2 focus-within:ring-accent/25 transition-shadow">
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  className="flex-1 bg-transparent border-none text-[17px] font-medium text-right outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                  value={e.quantity_g}
+                                  onChange={ev => updateReplacedQty(parseInt(ev.target.value) || 0)}
+                                  onClick={ev => ev.stopPropagation()}
+                                />
+                                <span className="text-[15px] text-text-secondary ml-1.5">{unitLabel}</span>
+                              </div>
+                              <div className="flex gap-2">
+                                {[-50, -10, 10, 50].map(delta => (
+                                  <motion.button
+                                    key={delta}
+                                    className="flex-1 py-1.5 bg-bg-primary border-none rounded-full text-[13px] font-medium text-text-secondary cursor-pointer hover:bg-bg-tertiary transition-colors"
+                                    onClick={ev => { ev.stopPropagation(); updateReplacedQty(e.quantity_g + delta); }}
+                                    whileTap={{ scale: 0.95 }}
+                                  >
+                                    {delta > 0 ? '+' : '−'}{Math.abs(delta)}{unitLabel}
+                                  </motion.button>
+                                ))}
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+            <div className="flex-shrink-0 px-6 pt-3 pb-[max(16px,env(safe-area-inset-bottom))]">
+              <motion.button
+                className="w-full bg-accent text-white rounded-xl h-[50px] text-[17px] font-medium border-none cursor-pointer"
+                onClick={onClose}
+                whileTap={{ scale: 0.97 }}
+              >
+                Done
+              </motion.button>
+            </div>
+          </div>
+        ) : (
+        <>
         {/* Scrollable body */}
         <div
           ref={bodyRef}
           onPointerDown={() => setCanDrag((bodyRef.current?.scrollTop ?? 0) <= 0)}
           className="flex-1 overflow-y-auto px-6 pt-4 scrollbar-none">
+
+          {/* ── Replace target banner ── */}
+          {isReplace && replaceTarget && (
+            <div className="flex items-center gap-3 mb-4 p-3 rounded-xl bg-bg-secondary">
+              <FoodThumbnail imageUrl={replaceTarget.imageUrl} name={replaceTarget.entry.food_name} />
+              <div className="min-w-0">
+                <div className="text-[12px] font-medium text-text-tertiary uppercase tracking-wide">Replacing</div>
+                <div className="text-[15px] font-medium truncate">{replaceTarget.entry.food_name}</div>
+              </div>
+            </div>
+          )}
 
           {/* ── Logged foods tray ── */}
           <AnimatePresence>
@@ -589,30 +811,33 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
         <div
           onPointerDown={() => setCanDrag(false)}
           className="flex-shrink-0 p-4 pb-[max(12px,env(safe-area-inset-bottom))] border-t border-bg-tertiary/50 bg-bg-primary">
-          {/* Meal selector — "Auto" lets Gemini detect the meal per food */}
-          <div className="flex gap-1.5 mb-2.5 overflow-x-auto scrollbar-none">
-            {([
-              { key: null, label: 'Auto' },
-              { key: 'breakfast', label: 'Breakfast' },
-              { key: 'lunch', label: 'Lunch' },
-              { key: 'snack', label: 'Snack' },
-              { key: 'dinner', label: 'Dinner' },
-            ] as const).map(opt => {
-              const active = selectedMeal === opt.key;
-              return (
-                <motion.button
-                  key={opt.label}
-                  onClick={() => setSelectedMeal(opt.key)}
-                  className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[13px] font-medium border-none cursor-pointer transition-colors ${
-                    active ? 'bg-accent/12 text-accent' : 'bg-bg-secondary text-text-secondary'
-                  }`}
-                  whileTap={{ scale: 0.93 }}
-                >
-                  {opt.label}
-                </motion.button>
-              );
-            })}
-          </div>
+          {/* Meal selector — "Auto" lets Gemini detect the meal per food.
+              Hidden in replace mode (the food keeps its existing meal). */}
+          {!isReplace && (
+            <div className="flex gap-1.5 mb-2.5 overflow-x-auto scrollbar-none">
+              {([
+                { key: null, label: 'Auto' },
+                { key: 'breakfast', label: 'Breakfast' },
+                { key: 'lunch', label: 'Lunch' },
+                { key: 'snack', label: 'Snack' },
+                { key: 'dinner', label: 'Dinner' },
+              ] as const).map(opt => {
+                const active = selectedMeal === opt.key;
+                return (
+                  <motion.button
+                    key={opt.label}
+                    onClick={() => setSelectedMeal(opt.key)}
+                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[13px] font-medium border-none cursor-pointer transition-colors ${
+                      active ? 'bg-accent/12 text-accent' : 'bg-bg-secondary text-text-secondary'
+                    }`}
+                    whileTap={{ scale: 0.93 }}
+                  >
+                    {opt.label}
+                  </motion.button>
+                );
+              })}
+            </div>
+          )}
           <div className="bg-bg-secondary rounded-[20px] px-4 pt-3 pb-2.5 focus-within:ring-2 focus-within:ring-accent/25 transition-shadow">
             {loadingMessage ? (
               <div className="flex items-center gap-2.5 min-h-[56px]">
@@ -646,14 +871,16 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
                   className="hidden"
                   onChange={handlePhotoSelect}
                 />
-                <motion.button
-                  className="w-9 h-9 rounded-full bg-bg-tertiary border-none flex items-center justify-center text-text-secondary cursor-pointer flex-shrink-0"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={!!loadingMessage || recording}
-                  whileTap={{ scale: 0.9 }}
-                >
-                  <Camera size={18} />
-                </motion.button>
+                {!isReplace && (
+                  <motion.button
+                    className="w-9 h-9 rounded-full bg-bg-tertiary border-none flex items-center justify-center text-text-secondary cursor-pointer flex-shrink-0"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={!!loadingMessage || recording}
+                    whileTap={{ scale: 0.9 }}
+                  >
+                    <Camera size={18} />
+                  </motion.button>
+                )}
                 {micSupported && (
                   <motion.button
                     className={`w-9 h-9 rounded-full border-none flex items-center justify-center cursor-pointer flex-shrink-0 transition-colors ${
@@ -686,6 +913,8 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
             </div>
           </div>
         </div>
+        </>
+        )}
       </motion.div>
 
       {/* Full-screen photo review */}
