@@ -55,6 +55,8 @@ Instructions:
 - ~~Inline food editing on photo view — when user taps a food item in the processed photo view, expand the card inline (chevron + edit controls like the log food flow) instead of opening a separate bottom sheet. Keeps the photo in view while editing.~~ - Completed ✅
 - ~~Gemini quantity overestimation — image-based estimates tend to be 10-20% high. Add calibration guidance in the vision system prompt to lean toward conservative/lower-bound portion estimates rather than applying a blanket multiplier.~~ - Completed ✅
 - ~~Resilient image processing — handle Gemini failures (503 overload, rate limits, transient errors) gracefully. Options: fallback to a secondary model (e.g. gemini-2.0-flash), or a retry cron job that picks up failed/stuck processing jobs and reprocesses them on a schedule. Goal: no photo should silently fail — user should always get results, even if delayed.~~ - Completed ✅
+- user should be able to edit foods identified from photos (keeping them linked to the photo but with an option to replace in case of wrong ID)
+- ~~photos should be visible on the shareable link~~ - Completed ✅
 
 ---
 

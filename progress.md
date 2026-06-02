@@ -786,3 +786,21 @@ Server-only env vars (no `NEXT_PUBLIC_` prefix) are not synced from `.env.local`
 ### Files changed
 - `src/app/api/check-email/route.ts` — reliable, fail-closed email-existence check
 - `src/app/auth/page.tsx` — don't guess new-vs-existing on a failed check
+
+## Session: 2026-06-03 — Photos on shareable link (v2)
+
+Made uploaded meal photos visible on the public read-only share page.
+
+### Changes
+- `supabase-share-links.sql`: `get_shared_log` RPC now also returns a `source_images` array — grouped by `source_image_url` (one entry per unique uploaded photo) with `mealType` and `foodIds`, mirroring the dashboard's `fetchSourceImages`. Filters to confirmed, `input_source='image'`, non-null url. **Must be re-run in Supabase SQL Editor** (CREATE OR REPLACE FUNCTION).
+- `src/app/share/[token]/ShareDashboard.tsx`: added `SharedSourceImage` type + `source_images` to `SharedData`; renders a read-only photo tray (between summary and meals) and a read-only expanded photo viewer (photo + identified foods, no edit/delete/processing-job UI). The `food-photos` bucket is already public so viewers can load images.
+
+### Note
+Action required: run the updated `supabase-share-links.sql` in the Supabase SQL Editor for the photos to appear on existing/new share links.
+
+### Follow-up: photo viewer escaped the mobile frame
+- The expanded photo viewer used `fixed inset-0`, positioning against the browser viewport — on desktop it went full-width, breaking the 428px mobile frame illusion.
+- Fixed by switching to `absolute inset-0` (the pattern EditFoodSheet/AddFoodSheet already use; the `layout.tsx` frame is `relative`). Applied in `ShareDashboard.tsx` (share photo viewer) and `page.tsx` (both the photo detail viewer and the processing-job detail viewer).
+
+### Build gotcha (noted)
+Running `next build` while a `next start` still holds `.next` can leave `.next/server/app/` missing → every route 404s despite a "successful" build log. Fix: kill the server first, `rm -rf .next` if needed, then rebuild. Always kill 3002 before rebuilding.

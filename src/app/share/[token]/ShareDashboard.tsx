@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect, TouchEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, X } from 'lucide-react';
 import CalorieRing from '@/components/CalorieRing';
 import MacroGrid from '@/components/MacroGrid';
 import FoodCard from '@/components/FoodCard';
@@ -24,6 +24,12 @@ interface SharedEntry {
   image_url: string | null;
 }
 
+interface SharedSourceImage {
+  url: string;
+  mealType: string;
+  foodIds: string[];
+}
+
 interface SharedData {
   display_name: string | null;
   email: string;
@@ -34,6 +40,7 @@ interface SharedData {
   daily_fat_goal: number;
   daily_fibre_goal: number;
   entries: SharedEntry[];
+  source_images: SharedSourceImage[];
   weekly_calories: Record<string, number>;
 }
 
@@ -67,6 +74,7 @@ export default function ShareDashboard({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
+  const [expandedPhoto, setExpandedPhoto] = useState<SharedSourceImage | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
@@ -153,6 +161,7 @@ export default function ShareDashboard({ token }: { token: string }) {
   }
 
   const logs = data.entries.map(e => toFoodLogEntry(e, data.logged_date));
+  const sourceImages = data.source_images ?? [];
 
   const totals = logs.reduce(
     (acc, log) => ({
@@ -236,6 +245,30 @@ export default function ShareDashboard({ token }: { token: string }) {
             />
           </motion.div>
 
+          {/* Photo tray */}
+          {sourceImages.length > 0 && (
+            <div className="mb-4 -mr-4">
+              <div className="flex gap-2.5 overflow-x-auto scrollbar-none pb-1 pr-4">
+                {sourceImages.map((img, idx) => (
+                  <motion.button
+                    key={img.url}
+                    className="flex-shrink-0 border-none p-0 cursor-pointer bg-transparent flex flex-col items-center gap-1"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: idx * 0.05 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setExpandedPhoto(img)}
+                  >
+                    <div className="w-28 h-28 rounded-xl overflow-hidden">
+                      <img src={img.url} alt="Food photo" className="w-full h-full object-cover" />
+                    </div>
+                    <span className="text-[11px] font-medium text-text-tertiary capitalize">{img.mealType}</span>
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="h-px bg-bg-tertiary mb-4" />
 
           {/* Meals */}
@@ -285,6 +318,68 @@ export default function ShareDashboard({ token }: { token: string }) {
           )}
         </div>
       </div>
+
+      {/* Photo detail view (read-only) */}
+      <AnimatePresence>
+        {expandedPhoto && (
+          <motion.div
+            className="absolute inset-0 bg-black z-50 flex flex-col"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 pt-[max(env(safe-area-inset-top),12px)] pb-2">
+              <motion.button
+                className="w-9 h-9 rounded-full bg-white/15 border-none flex items-center justify-center cursor-pointer"
+                onClick={() => setExpandedPhoto(null)}
+                whileTap={{ scale: 0.9 }}
+              >
+                <X size={18} className="text-white" />
+              </motion.button>
+              <span className="text-white/70 text-[14px] font-medium capitalize">{expandedPhoto.mealType}</span>
+              <span className="w-9" />
+            </div>
+
+            {/* Photo */}
+            <div className="px-4 pb-3">
+              <motion.img
+                src={expandedPhoto.url}
+                alt="Food photo"
+                className="w-full rounded-xl object-contain max-h-[40vh]"
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+              />
+            </div>
+
+            {/* Food list */}
+            <div className="flex-1 overflow-y-auto px-4 pb-[max(env(safe-area-inset-bottom),16px)]">
+              <div className="text-white/50 text-[12px] font-medium uppercase tracking-wide mb-2">
+                Identified foods ({expandedPhoto.foodIds.length})
+              </div>
+              <div className="rounded-xl overflow-hidden" style={{ backgroundColor: '#1c1c1e' }}>
+                {expandedPhoto.foodIds.map((foodId, idx) => {
+                  const entry = logs.find(l => l.id === foodId);
+                  if (!entry) return null;
+                  const unitLabel = entry.unit === 'ml' ? 'ml' : 'g';
+                  return (
+                    <div key={foodId}>
+                      {idx > 0 && <div className="h-px bg-white/10 mx-3.5" />}
+                      <div className="p-3 px-3.5">
+                        <div className="text-[14px] font-medium text-white leading-snug">{entry.food_name}</div>
+                        <div className="flex items-baseline justify-between gap-2 mt-px text-[13px] text-white/50">
+                          <span>{entry.quantity_g}{unitLabel} &middot; {entry.calories} cal</span>
+                          <span>P:{entry.protein} C:{entry.carbs} F:{entry.fat} Fi:{entry.fibre}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Footer */}
       <div className="flex-shrink-0 pb-[max(env(safe-area-inset-bottom),8px)] pt-2 px-4 text-center">

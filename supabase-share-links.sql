@@ -82,6 +82,29 @@ BEGIN
         AND f.logged_date = the_date
         AND f.status = 'confirmed'
     ), '[]'::jsonb),
+    'source_images', COALESCE((
+      SELECT jsonb_agg(
+        jsonb_build_object(
+          'url', s.url,
+          'mealType', s.meal_type,
+          'foodIds', s.food_ids
+        ) ORDER BY s.first_created
+      )
+      FROM (
+        SELECT
+          source_image_url AS url,
+          (array_agg(meal_type ORDER BY created_at))[1] AS meal_type,
+          jsonb_agg(id ORDER BY created_at) AS food_ids,
+          MIN(created_at) AS first_created
+        FROM food_log
+        WHERE user_id = link_user_id
+          AND logged_date = the_date
+          AND status = 'confirmed'
+          AND input_source = 'image'
+          AND source_image_url IS NOT NULL
+        GROUP BY source_image_url
+      ) s
+    ), '[]'::jsonb),
     'weekly_calories', COALESCE((
       SELECT jsonb_object_agg(wf.d::text, wf.total_cal)
       FROM (
