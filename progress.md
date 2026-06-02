@@ -765,3 +765,24 @@ Full implementation of photo-based food logging with async processing.
 - `src/lib/gemini.ts` — vision prompt calibration
 - `CLAUDE.md` — dev workflow instruction
 - `enhancements.md` — marked 5 items complete
+
+## Session: 2026-06-02 — Prod auth bug fix (email-existence check)
+
+**Symptom:** Registered email recognized as new (showed "Create Account") on prod, but worked correctly on localhost.
+
+### Root cause
+- `/api/check-email` is the only code path using `SUPABASE_SERVICE_ROLE_KEY`. The var was in `.env.local` (localhost OK) but **not set in Vercel production**, so the Supabase admin call failed.
+- The route **failed open** — both the error path and the `catch` returned `{ exists: false }`, so any failure silently meant "new user" → client showed signup for an existing email.
+- Secondary: the primary query hit `/rest/v1/users` (PostgREST `public.users`), not `auth.users`, so it never actually matched — the app had been silently relying on the admin-API fallback all along.
+
+### Fixes (commit `9eb79fd`)
+- Added `SUPABASE_SERVICE_ROLE_KEY` to Vercel production (`vercel env add`). Confirmed it was the only missing prod var; other 4 already present.
+- Rewrote `src/app/api/check-email/route.ts`: use GoTrue admin API directly, drop the dead `public.users` query, and **fail closed** — return 500 if the key/url is missing, 502 on lookup error, with `console.error` logging instead of silent `exists:false`.
+- `src/app/auth/page.tsx`: on an inconclusive check, surface a "Couldn't verify your email" retry message and stay on the email step instead of defaulting to signup.
+
+### Lesson
+Server-only env vars (no `NEXT_PUBLIC_` prefix) are not synced from `.env.local` to Vercel — they must be added per-environment in Vercel and require a redeploy. "Works locally, broken on prod" for a secret-touching feature usually means a missing Vercel env var.
+
+### Files changed
+- `src/app/api/check-email/route.ts` — reliable, fail-closed email-existence check
+- `src/app/auth/page.tsx` — don't guess new-vs-existing on a failed check
