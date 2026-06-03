@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Eye, EyeOff, Pencil } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
+import { DEMO_EMAIL, DEMO_PASSWORD } from '@/lib/demo';
 
 export default function AuthPage() {
   const [emailSubmitted, setEmailSubmitted] = useState(false);
@@ -17,6 +18,7 @@ export default function AuthPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
   const router = useRouter();
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
@@ -109,6 +111,46 @@ export default function AuthPage() {
       router.push('/');
       router.refresh();
     }
+  };
+
+  const handleDemo = async () => {
+    setError('');
+    setDemoLoading(true);
+
+    // Reset the shared demo account to its curated seed before signing in, so
+    // every visitor lands on a clean, realistic day. Pass our local date so the
+    // seed is dated to "today" from the visitor's perspective.
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    try {
+      const res = await fetch('/api/demo/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ today }),
+      });
+      if (!res.ok) throw new Error('reset failed');
+    } catch {
+      setError("Couldn't start the demo. Please try again.");
+      setDemoLoading(false);
+      return;
+    }
+
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithPassword({
+      email: DEMO_EMAIL,
+      password: DEMO_PASSWORD,
+    });
+    if (error) {
+      setError("Couldn't start the demo. Please try again.");
+      setDemoLoading(false);
+      return;
+    }
+    // One-shot signal so the dashboard shows the guest welcome only as a result
+    // of this click — not on a plain refresh or a persisted demo session.
+    sessionStorage.setItem('hm-guest-welcome-pending', '1');
+    router.push('/');
+    router.refresh();
   };
 
   const handleForgotPassword = async () => {
@@ -293,6 +335,37 @@ export default function AuthPage() {
                   : 'Sign In'}
           </motion.button>
         </form>
+
+        {/* Demo entry — only on the first screen, before committing an email */}
+        <AnimatePresence>
+          {!emailSubmitted && (
+            <motion.div
+              className="overflow-hidden text-center"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <button
+                type="button"
+                onClick={handleDemo}
+                disabled={demoLoading || loading}
+                className="text-sm text-text-secondary bg-transparent border-none cursor-pointer mt-4 disabled:opacity-60"
+              >
+                {demoLoading ? (
+                  'Starting demo…'
+                ) : (
+                  <>
+                    Just exploring?{' '}
+                    <span className="underline decoration-dashed decoration-text-tertiary underline-offset-[3px]">
+                      Continue as guest
+                    </span>
+                  </>
+                )}
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Forgot password (sign-in only) */}
         <AnimatePresence>

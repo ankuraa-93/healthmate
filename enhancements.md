@@ -6,6 +6,16 @@ Instructions:
 - You can rearrange bullets across section if priorities change.
 - When a bullet is completed, strikethrough the bullet and add "- Completed" text next to it, with a green tick emoji.
 
+
+
+## Vision
+
+Level 1: Flawless voice + image calorie tracking with personalised goals
+
+Level 2: Workout input to dynamically set daily goals + track weight, body fat%, etc to correct estimates around NEAT calorie expenditure
+
+Level 3: Blood tests suggestions and report intelligence
+
 ## v1 Goals
 
 > Voice + text parsing should work flawlessly. Auto food addition to food library should work flawlessly. The app should be good looking and inviting to use. Basic UI/UX functions should be available.
@@ -65,6 +75,9 @@ Instructions:
 - ~~Fix full-screen overlays escaping the 428px mobile frame on desktop — photo gallery, photo review sheet, and processing-photo viewer switched from `fixed inset-0` to `absolute inset-0`~~ - Completed ✅
 - ~~Fix processing-photo delete button truncation (clipped by tray's overflow-x); added top padding and restyled to bottom-sheet close button~~ - Completed ✅
 - ~~Camera badge on photo-identified foods missing on the share viewer — RPC now returns `input_source` and `toFoodLogEntry` maps it (logger/viewer consistency)~~ - Completed ✅
+- ~~Guest demo mode — "Continue as guest" on the auth screen lets recruiters/visitors explore a populated demo account without signing up. One shared `demo@calorrific.app` account reset to a curated seed day (today-relative dates; two photo-logged meals + a few history days for calendar dots) on every entry via `/api/demo/reset` (service role, delete-then-insert). One-time guest-welcome bottom sheet (shown only on the click) nudges toward voice/image logging.~~ - Completed ✅
+- Fix quantities for egg and egg white for every instance - it takes a different value everytime (say if user says 1 boiled egg, log as 50g boiled egg)
+- Consistently boiled egg white is identified as boiled egg from image by Gemini 
 
 ---
 

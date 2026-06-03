@@ -13,7 +13,9 @@ import { ReviewPhoto } from '@/components/PhotoReviewSheet';
 import EditFoodSheet from '@/components/EditFoodSheet';
 import Toast from '@/components/Toast';
 import WeekStrip from '@/components/WeekStrip';
+import GuestWelcome from '@/components/GuestWelcome';
 import { useAuth } from '@/components/AuthProvider';
+import { DEMO_USER_ID } from '@/lib/demo';
 import { fetchFoodLogs, fetchProfile, updateFoodLog, deleteFoodLog, insertFoodLog, fetchSuggestions, fetchWeeklyCalories, getOrCreateShareLink, SuggestedFood, insertProcessingJob, deleteProcessingJob, updateProcessingJob, fetchProcessingJobs, uploadFoodPhoto, fetchSourceImages, SourceImage } from '@/lib/supabase-data';
 import SuggestedFoods from '@/components/SuggestedFoods';
 import { FoodLogEntry, Profile, ProcessingJob } from '@/lib/types';
@@ -57,6 +59,16 @@ const defaultProfile: Profile = {
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  // True only when the visitor just clicked "Continue as guest" (auth page sets
+  // a one-shot flag). Consumed at mount so a refresh or persisted demo session
+  // won't re-trigger the welcome.
+  const [guestWelcomePending] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const pending = sessionStorage.getItem('hm-guest-welcome-pending') === '1';
+    if (pending) sessionStorage.removeItem('hm-guest-welcome-pending');
+    return pending;
+  });
+  const [guestWelcomeDismissed, setGuestWelcomeDismissed] = useState(false);
   const [logs, setLogs] = useState<FoodLogEntry[]>([]);
   const [profile, setProfile] = useState<Profile>(defaultProfile);
   const [suggestions, setSuggestions] = useState<SuggestedFood[]>([]);
@@ -152,6 +164,16 @@ export default function DashboardPage() {
       setPullDistance(0);
     }
   };
+
+  // Greet only right after the guest click, pointing them at voice/photo
+  // logging. Derived (not set in an effect); demo-id check is belt-and-suspenders
+  // so a real user never sees it.
+  const showGuestWelcome =
+    guestWelcomePending && !guestWelcomeDismissed && user?.id === DEMO_USER_ID;
+
+  const dismissGuestWelcome = useCallback(() => {
+    setGuestWelcomeDismissed(true);
+  }, []);
 
   const dismissSuggestions = useCallback((key: string) => {
     setDismissedMeals(prev => {
@@ -1187,6 +1209,8 @@ export default function DashboardPage() {
       </AnimatePresence>
 
       <Toast message={toast.message} visible={toast.visible} action={toast.action} />
+
+      <GuestWelcome open={showGuestWelcome} onClose={dismissGuestWelcome} />
     </div>
   );
 }

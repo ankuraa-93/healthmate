@@ -842,3 +842,42 @@ No DB/Supabase changes in this batch — frontend only. Safe to deploy without r
 
 ### Note
 DB change this session: `get_shared_log` RPC gained `input_source` (re-run the SQL). No other schema changes.
+
+## Session: 2026-06-03 (cont.) — Demo account ("Try without signup")
+
+### Goal
+Recruiters/hiring managers visiting the CV link hit the auth wall and bounce. Added a one-tap demo entry so they can explore a realistic, populated account without signing up.
+
+### Approach (Option B — shared demo account, reset on entry)
+- **One shared demo account** (`demo@calorrific.app`, user id `b1ecb8f5-3024-4377-bba8-1b11eb7e4e66`) pre-seeded with a curated day.
+- **Reset-on-entry**, not "reset on 0 sessions": Supabase auth is stateless JWTs, so there's no reliable server-side notion of active sessions (would need presence heartbeats/cron). Clicking the demo button hits `POST /api/demo/reset` (service role, delete-then-insert) which wipes the demo account and re-seeds, THEN signs in. Account may sit "dirty" between visitors but nobody sees that — next visitor resets on the way in. Concurrent-visitor collision is the only failure mode; negligible at portfolio traffic, self-heals on refresh.
+- Seed dates are **rebased to "today"** on every reset (client passes its local date) so the day never looks stale; history days (−1,−2,−3,−7) give green calendar dots + week-strip bars.
+
+### Files
+- `src/lib/demo.ts` — credentials/user-id constants, `DEMO_GOALS`, the seed day (`TODAY_MEALS` + `HISTORY_MEALS`), and `buildSeedRows(todayStr)`.
+- `src/app/api/demo/reset/route.ts` — service-role reset: clears `food_log`/`processing_jobs`/`share_links` for the demo user, restores profile (display name "Alex (Demo)" + goals), re-inserts the seed.
+- `src/app/auth/page.tsx` — `handleDemo` + "Just exploring? **Try the app without signup**" link below Continue (dashed-underline matching the in-app "Replace this food"), first screen only.
+
+### Seed day (today, ~1,213 / 2,000 cal — in-progress ring w/ remaining)
+- **Breakfast (photo-logged)**: Buttered Toast, Sprouts Salad, Masala Chai
+- **Lunch (photo-logged)**: Palak Paneer, Roti, Sev
+- **Snack (text)**: Banana, Almonds
+- Two photo meals = camera badges + photo gallery showcase. Photos are **real plate photos** copied from a test user into the demo account's own storage folder (`food-photos/<demo-id>/demo-breakfast.jpg`, `demo-lunch.jpg`) so the demo is self-contained. Seed items match what's actually in each photo.
+
+### Verified
+Build passes; reset API works + idempotent (25 rows, no accumulation); dates rebase correctly; photos resolve 200; demo credentials authenticate; demo link present in rendered DOM. Server running on :3002.
+
+### Not done / notes
+- DB change: created the `demo@calorrific.app` auth user (confirmed) + seeded its data via service role on prod Supabase. No schema changes — safe to deploy (Vercel already has `SUPABASE_SERVICE_ROLE_KEY`).
+- Possible later hardening: rate-limit the parse endpoints for the demo user (public working login can hit paid Gemini/Groq/USDA APIs). Negligible at portfolio scale; not built.
+
+### Guest welcome sheet (added same session)
+- Copy on the auth link changed to "Just exploring? **Continue as guest**".
+- New `src/components/GuestWelcome.tsx` — short bottom sheet (spring up, drag handle, "Got it"): "Welcome, guest / This is a demo account with a day already logged. Tap + to try logging a meal by voice or photo." Chose informational-only over action-buttons (user's call).
+- Wired in `src/app/page.tsx`: shown **only as a result of clicking "Continue as guest"**. `handleDemo` sets a one-shot `sessionStorage['hm-guest-welcome-pending']`; the dashboard consumes (reads + removes) it in a lazy `useState` init at mount, so a plain refresh or a persisted demo session does NOT re-trigger it. Visibility is **derived** (`showGuestWelcome = guestWelcomePending && !dismissed && isDemo`), not set in an effect — the repo lints against synchronous setState in effects. Copy: title "Hi there!", body about dummy meals + tapping + to log by voice/image.
+
+### Session wrap — tested & shipped
+- User tested the full guest flow (Continue as guest → reset + sign-in → populated dashboard → guest welcome → voice/image logging). Looks good.
+- **Build-cache incident (resolved):** repeated rapid rebuilds corrupted the local webpack cache — the root `app/layout-*.js` + `app/page-*.js` chunks stopped being emitted while their hashes were still written into the HTML, so the dashboard 400'd its own chunks → "client-side exception". Fix: `rm -rf .next node_modules/.cache` + clean rebuild (chunks 13→15, root chunks restored). Also stop piping `next build` through `grep | head` (SIGPIPE truncates emit). Only affects local dev; Vercel builds fresh.
+- enhancements.md: added Guest demo mode as a completed v2 item.
+- Pushed to main → Vercel auto-deploy.
