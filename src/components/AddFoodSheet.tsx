@@ -128,12 +128,16 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
   // --- DB operations ---
 
   const logItemToDb = async (item: Omit<TrayItem, 'id'>): Promise<TrayItem | null> => {
-    const ratio = item.quantity_g / 100;
+    // Guard against a missing/invalid quantity (e.g. matcher dropped quantity_g):
+    // quantity_g is NOT NULL, so a null/NaN here would 23502-fail the insert and
+    // the item would be silently lost. Fall back to a 100g/ml serving.
+    const safeQty = Number.isFinite(item.quantity_g) && item.quantity_g > 0 ? item.quantity_g : 100;
+    const ratio = safeQty / 100;
     const entry = await insertFoodLog({
       user_id: userId,
       food_library_id: item.matched_library_id,
       food_name: item.matched_library_name || item.name,
-      quantity_g: item.quantity_g,
+      quantity_g: safeQty,
       calories: Math.round(item.calories_per_100g * ratio),
       protein: Math.round(item.protein_per_100g * ratio),
       carbs: Math.round(item.carbs_per_100g * ratio),
@@ -147,7 +151,7 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
       source_image_url: null,
     });
     if (!entry) return null;
-    return { ...item, meal_type: selectedMeal ?? item.meal_type, id: entry.id };
+    return { ...item, quantity_g: safeQty, meal_type: selectedMeal ?? item.meal_type, id: entry.id };
   };
 
   // --- Text submit ---
@@ -261,6 +265,11 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
       const newItems = results.filter(Boolean) as TrayItem[];
       await delay(400);
       setTrayItems(prev => [...prev, ...newItems]);
+      // Never let a failed insert vanish silently — tell the user what dropped.
+      const failedCount = results.length - newItems.length;
+      if (failedCount > 0) {
+        onToast?.(`Logged ${newItems.length} of ${results.length} — ${failedCount} couldn't be saved, try again`);
+      }
     } catch (error) {
       console.error('Text parse error:', error);
       onToast?.('Failed to parse food — try again');

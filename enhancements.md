@@ -46,6 +46,7 @@ Level 3: Blood tests suggestions and report intelligence
 
 - ~~Option to undo in the toast after food is deleted (since there is no confirmation screen after delete)~~ - Completed ✅
 - ~~Warning for erroneous quantities~~ - Completed ✅
+- ~~Grams-for-a-liquid logging bug — entering a weight for a drink (e.g. "150g buttermilk") could silently drop the item (parser emitted `quantity_ml`/null → `quantity_g` NOT NULL insert failure → `filter(Boolean)` swallowed it) or log a wrong default. Fix: canonicalize the amount to `quantity_g` regardless of unit (density ≈ 1, so "150g" and "150ml" both log as 150ml), restore user-given quantity/unit/meal from the parse step instead of trusting the matcher, and surface a "Logged X of Y" toast so no food vanishes silently.~~ - Completed ✅
 
 ### Nutrition & Data
 

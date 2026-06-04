@@ -128,8 +128,28 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Separate matched vs unmatched items
-    const matchedItems: MatchedItem[] = matched.items;
+    // The matcher LLM occasionally omits the user-provided passthrough fields
+    // (quantity_g, unit, meal_type) from its JSON output — most often when the
+    // stated unit conflicts with the matched food's true unit (e.g. "150g" of a
+    // liquid). A missing quantity_g then becomes a null insert and violates the
+    // food_log NOT NULL constraint, silently dropping the item. These fields are
+    // facts from the parse step, not the matcher's to invent — restore them from
+    // the original parsed items. The matcher must return items in the same order
+    // (MATCH_SYSTEM_PROMPT rule 5); we guard on length and fall back to name.
+    const sameShape = matched.items.length === items.length;
+    const matchedItems: MatchedItem[] = (matched.items as MatchedItem[]).map((m, i) => {
+      const orig = sameShape
+        ? items[i]
+        : items.find(it => it.name.toLowerCase() === (m.name ?? '').toLowerCase());
+      const q = Number(m.quantity_g);
+      return {
+        ...m,
+        name: m.name ?? orig?.name ?? '',
+        quantity_g: Number.isFinite(q) && q > 0 ? q : (orig?.quantity_g ?? 0),
+        unit: m.unit ?? orig?.unit ?? 'g',
+        meal_type: m.meal_type ?? orig?.meal_type ?? 'snack',
+      };
+    });
     const unmatchedItems = matchedItems.filter(item => !item.matched_library_id);
 
     // For unmatched items, search the web for real nutrition data

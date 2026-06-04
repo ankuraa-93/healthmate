@@ -52,6 +52,8 @@ Your job: take natural language food input and return structured JSON.
    - "a handful of almonds" → 30g
    - If quantity is ambiguous, use the food's typical single serving size.
    - If a specific gram/ml amount is given, use it exactly.
+   - **The numeric amount always goes in the \`quantity_g\` field** — it is just a number; the separate \`unit\` field records whether it's grams or millilitres. NEVER emit a \`quantity_ml\` field, and NEVER set the quantity to null when the user gave a number.
+   - **Weight given for a liquid (or volume for a solid):** keep the user's number and set the correct \`unit\` for the food. Most foods have density ≈ 1, so grams and millilitres map 1:1 — "150g buttermilk" → \`{ "quantity_g": 150, "unit": "ml" }\`, "200ml rice" → \`{ "quantity_g": 200, "unit": "g" }\`. Do not reset to a default serving and do not drop the number.
 
 3. **Food names**: Use clear, specific names:
    - "eggs" → "Scrambled Eggs" (default preparation unless specified)
