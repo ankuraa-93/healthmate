@@ -650,7 +650,7 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
         <div
           ref={bodyRef}
           onPointerDown={() => setCanDrag((bodyRef.current?.scrollTop ?? 0) <= 0)}
-          className="flex-1 overflow-y-auto px-6 pt-4 scrollbar-none">
+          className={`flex-1 overflow-y-auto px-6 pt-4 scrollbar-none ${trayItems.length > 0 ? 'pb-[max(16px,env(safe-area-inset-bottom))]' : ''}`}>
 
           {/* ── Replace target banner ── */}
           {isReplace && replaceTarget && (
@@ -840,7 +840,9 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
           )}
         </div>
 
-        {/* ── Fixed bottom input bar ── */}
+        {/* ── Fixed bottom input bar — hidden once foods are logged, so the tray
+            becomes a clean review screen (reopen the sheet to add more) ── */}
+        {trayItems.length === 0 && (
         <div
           onPointerDown={() => setCanDrag(false)}
           className="flex-shrink-0 p-4 pb-[max(12px,env(safe-area-inset-bottom))] border-t border-bg-tertiary/50 bg-bg-primary">
@@ -946,6 +948,7 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
             </div>
           </div>
         </div>
+        )}
         </>
         )}
       </motion.div>

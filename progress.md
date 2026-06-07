@@ -908,3 +908,27 @@ Build passes; reset API works + idempotent (25 rows, no accumulation); dates reb
 ## Clearable quantity — Replace Food card
 - `AddFoodSheet.tsx` replace-success card — same `replacedQtyDraft` buffer pattern: field is clearable, empty isn't persisted (keeps last valid qty), valid number live-saves via `updateReplacedQty`, ± buttons and expand/collapse reset the draft. Now consistent across all four quantity editors (Edit sheet, Log Food tray, photo Identified foods, Replace Food).
 - Build clean; server restarted on 3002. **Not yet committed/pushed.**
+
+## Shipped (2026-06-07)
+- User tested all changes — approved. Committed as `2ef95b5` and pushed to `main` → Vercel prod deploy (calorrific.vercel.app).
+- enhancements.md updated (quantity-clear bug struck through; scroll-vs-swipe, dvh sheets, clearable-quantity, parse-fail-restore logged as Completed ✅).
+- Memories added: quantity-editors consistency (4 sites), dvh sheet sizing gotcha.
+
+## Photo retry persistence + Log Food composer hidden on review
+- `page.tsx` `handleRetryProcessingJob` — failed photos are no longer discarded. The original was only held in an in-memory ref (`processingDataRef`), so after a reload/tab-switch retry hit "Photo data expired" and deleted the job. Now it recovers the image from storage (the 800px thumbnail at `job.image_url` → fetch → base64) when the ref is gone, so retry always works and the upload is never lost. (X-to-delete + Retry UI on failed photos already existed.)
+- `page.tsx` `processOnePhoto` — "no food found" no longer auto-deletes the upload; it's marked `failed` (retryable/deletable) so nothing is silently discarded.
+- `AddFoodSheet.tsx` — bottom input composer (meal selector + textarea + mic/camera/send) is hidden once `trayItems.length > 0`, turning the final screen into a clean scrollable review (reopen sheet to add more). Body gets safe-area bottom padding in that state. (User reversed the earlier "keep both" decision.)
+- Note: hit the known `.next` corruption (404 on all routes after rapid rebuilds) — fixed with `rm -rf .next node_modules/.cache` + rebuild.
+- Build clean; server on 3002 (all routes 200). **Not yet committed/pushed.**
+
+## Image-failure UX polish + TEMP test toggle
+- `page.tsx` failure toasts are now actionable with a **Retry** button (uses a stable `retryJobRef` + `hideToast`, synced via useEffect to avoid a useCallback cycle): "Food identification failed", "No food found in photo", and the retry-failed "Still couldn't identify the food" all offer Retry (6s duration).
+- Failed photos no longer render in the meal section — `mealJobs` is now scoped to `status==='processing'` only, so failed uploads live solely in the top photo tray (no duplicate "X failed" line, no empty meal card).
+- ⚠️ TEMP (remove when user says testing done): `processOnePhoto` throws when `NEXT_PUBLIC_FORCE_IMAGE_FAIL === 'true'`; flag added to `.env.local`. Forces every uploaded photo to fail. To disable: remove the block in `processOnePhoto` + the line in `.env.local`, then rebuild.
+- Build clean; server on 3002.
+
+## Image-failure UX shipped + test toggle removed
+- Removed the TEMP deliberate-failure mechanism: deleted the `NEXT_PUBLIC_FORCE_IMAGE_FAIL` guard in `processOnePhoto` and the line from `.env.local`. Verified no `FORCE_IMAGE_FAIL` refs remain in src.
+- Account `e0a50ceb` had 0 processing_jobs (user deleted all failed test photos via UI). Removed the orphaned seeded storage file `…/1780834381517-failtest.jpg`.
+- Final image-failure behavior: failed photos kept (not discarded), image recovered from storage for retry (survives reload/tab-switch), retry from viewer or actionable failure toasts ("Food identification failed" / "No food found in photo"); retry-failed toast is plain "Still couldn't identify the foods - retry in some time" (no button, 4s); failed photos shown only in top tray, not the meal section; viewer copy "Food identification failed / Temporary issue - try again"; delete-confirm popup no longer offers Retry.
+- Build clean; server on 3002.

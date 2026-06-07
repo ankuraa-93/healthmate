@@ -253,6 +253,15 @@ export default function DashboardPage() {
     toastTimer.current = setTimeout(() => setToast({ visible: false, message: '' }), duration);
   }, []);
 
+  const hideToast = useCallback(() => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ visible: false, message: '' });
+  }, []);
+
+  // Stable ref to the latest retry handler so failure toasts can offer a Retry
+  // action without creating a useCallback dependency cycle.
+  const retryJobRef = useRef<((job: ProcessingJob) => void) | null>(null);
+
   const handleShare = useCallback(async () => {
     if (!user || sharing) return;
     setSharing(true);
@@ -427,10 +436,14 @@ export default function DashboardPage() {
     const parsed = await parseRes.json();
 
     if (!parsed.items || parsed.items.length === 0) {
-      showToast('No food found in photo');
-      await deleteProcessingJob(job.id);
-      setProcessingJobs(prev => prev.filter(j => j.id !== job.id));
-      processingDataRef.current.delete(job.id);
+      // Don't silently discard the upload — keep it as a failed job so the user can
+      // retry (Gemini sometimes misses a valid food) or delete it themselves.
+      await updateProcessingJob(job.id, { status: 'failed' });
+      setProcessingJobs(prev => prev.map(j => j.id === job.id ? { ...j, status: 'failed' } : j));
+      showToast('No food found in photo', 6000, {
+        label: 'Retry',
+        onPress: () => { hideToast(); retryJobRef.current?.(job); },
+      });
       return;
     }
 
@@ -478,15 +491,34 @@ export default function DashboardPage() {
       return [...prev, { url: imageData.thumbnailUrl, mealType, foodIds: inserted.map(e => e.id) }];
     });
     showToast(`${inserted.length} food${inserted.length > 1 ? 's' : ''} logged from photo ✓`);
-  }, [showToast]);
+  }, [showToast, hideToast]);
 
   const handleRetryProcessingJob = useCallback(async (job: ProcessingJob) => {
-    const cached = processingDataRef.current.get(job.id);
+    let cached = processingDataRef.current.get(job.id);
+    // After a reload or tab-switch the in-memory original is gone, but the uploaded
+    // photo still lives in storage — recover it from there so the image is never
+    // discarded and retry always works.
     if (!cached) {
-      showToast('Photo data expired — please re-upload');
-      await deleteProcessingJob(job.id);
-      setProcessingJobs(prev => prev.filter(j => j.id !== job.id));
-      return;
+      try {
+        const res = await fetch(job.image_url);
+        const blob = await res.blob();
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        cached = {
+          originalBase64: dataUrl.split(',')[1] ?? '',
+          mimeType: blob.type || 'image/jpeg',
+          thumbnailUrl: job.image_url,
+        };
+        processingDataRef.current.set(job.id, cached);
+      } catch (err) {
+        console.error('Could not recover photo for retry:', err);
+        showToast('Could not load photo — try again');
+        return; // keep the job so the user can retry or delete it
+      }
     }
 
     await updateProcessingJob(job.id, { status: 'processing' });
@@ -498,9 +530,13 @@ export default function DashboardPage() {
       console.error('Retry processing error:', err);
       await updateProcessingJob(job.id, { status: 'failed' });
       setProcessingJobs(prev => prev.map(j => j.id === job.id ? { ...j, status: 'failed' } : j));
-      showToast('Retry failed — try again later');
+      showToast('Still couldn\'t identify the foods - retry in some time', 4000);
     }
-  }, [processOnePhoto, showToast]);
+  }, [processOnePhoto, showToast, hideToast]);
+
+  useEffect(() => {
+    retryJobRef.current = handleRetryProcessingJob;
+  }, [handleRetryProcessingJob]);
 
   const handleDeleteProcessingJob = useCallback(async (job: ProcessingJob) => {
     setConfirmDeleteJob(null);
@@ -552,12 +588,15 @@ export default function DashboardPage() {
         console.error('Photo processing error:', err);
         await updateProcessingJob(job.id, { status: 'failed' });
         setProcessingJobs(prev => prev.map(j => j.id === job.id ? { ...j, status: 'failed' } : j));
-        showToast('Photo analysis failed — tap to retry');
+        showToast('Food identification failed', 6000, {
+          label: 'Retry',
+          onPress: () => { hideToast(); retryJobRef.current?.(job); },
+        });
       }
 
       URL.revokeObjectURL(photo.processedImage.thumbnailUrl);
     }
-  }, [user, selectedDate, showToast, processOnePhoto]);
+  }, [user, selectedDate, showToast, hideToast, processOnePhoto]);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -725,7 +764,9 @@ export default function DashboardPage() {
           let cardIndex = 0;
           return mealOrder.map((type) => {
             const entries = logs.filter(l => l.meal_type === type);
-            const mealJobs = processingJobs.filter(j => j.meal_type === type);
+            // Only in-progress jobs affect the meal section; failed photos live solely
+            // in the photo tray up top.
+            const mealJobs = processingJobs.filter(j => j.meal_type === type && j.status === 'processing');
             const mealCalories = entries.reduce((sum, e) => sum + (e.status === 'confirmed' ? (e.calories ?? 0) : 0), 0);
             const loggedNames = new Set(entries.map(e => e.food_name));
             const mealSuggestions = showSuggestions && !dismissedMeals.has(`${formatDate(selectedDate)}:${type}`)
@@ -768,35 +809,25 @@ export default function DashboardPage() {
                         );
                       })}
                     </AnimatePresence>
-                    {/* Processing/failed status in meal section */}
+                    {/* Processing status in meal section. Failed photos are shown only
+                        in the photo tray up top, not here (avoid duplicate noise). */}
                     {(() => {
-                      const processingCount = mealJobs.filter(j => j.status === 'processing').length;
-                      const failedCount = mealJobs.filter(j => j.status === 'failed').length;
-                      if (processingCount === 0 && failedCount === 0) return null;
+                      const processingCount = mealJobs.length;
+                      if (processingCount === 0) return null;
                       return (
                         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
                           {entries.length > 0 && <div className="h-px bg-bg-tertiary mx-3.5" />}
                           <div className="p-3 px-3.5 flex flex-col gap-1.5">
-                            {processingCount > 0 && (
-                              <div className="flex items-center gap-2.5">
-                                <motion.div
-                                  className="w-2 h-2 rounded-full bg-accent"
-                                  animate={{ opacity: [1, 0.4, 1] }}
-                                  transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-                                />
-                                <span className="text-[14px] font-medium text-text-secondary">
-                                  Identifying foods from {processingCount} photo{processingCount > 1 ? 's' : ''}...
-                                </span>
-                              </div>
-                            )}
-                            {failedCount > 0 && (
-                              <div className="flex items-center gap-2.5">
-                                <div className="w-2 h-2 rounded-full bg-destructive" />
-                                <span className="text-[14px] font-medium text-text-secondary">
-                                  {failedCount} photo{failedCount > 1 ? 's' : ''} failed — tap in tray to retry
-                                </span>
-                              </div>
-                            )}
+                            <div className="flex items-center gap-2.5">
+                              <motion.div
+                                className="w-2 h-2 rounded-full bg-accent"
+                                animate={{ opacity: [1, 0.4, 1] }}
+                                transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                              />
+                              <span className="text-[14px] font-medium text-text-secondary">
+                                Identifying foods from {processingCount} photo{processingCount > 1 ? 's' : ''}...
+                              </span>
+                            </div>
                           </div>
                         </motion.div>
                       );
@@ -1131,8 +1162,8 @@ export default function DashboardPage() {
               {expandedJob.status === 'failed' ? (
                 <>
                   <AlertCircle size={32} className="text-red-400 mb-3" />
-                  <p className="text-[16px] font-medium text-white mb-1">Analysis failed</p>
-                  <p className="text-[14px] text-white/50 text-center mb-4">Could not identify foods in this photo</p>
+                  <p className="text-[16px] font-medium text-white mb-1">Food identification failed</p>
+                  <p className="text-[14px] text-white/50 text-center mb-4">Temporary issue - try again.</p>
                   <motion.button
                     className="px-6 py-2.5 rounded-xl bg-accent border-none text-[14px] font-medium text-white cursor-pointer"
                     onClick={() => { setExpandedJob(null); handleRetryProcessingJob(expandedJob); }}
@@ -1187,7 +1218,7 @@ export default function DashboardPage() {
               </p>
               <p className="text-[14px] text-text-secondary text-center mb-5">
                 {confirmDeleteJob.status === 'failed'
-                  ? 'This photo could not be analyzed. You can retry or remove it.'
+                  ? 'This photo could not be analyzed. Remove it?'
                   : 'This photo is still being analyzed.'}
               </p>
               <div className="flex gap-3">
@@ -1197,14 +1228,6 @@ export default function DashboardPage() {
                 >
                   Cancel
                 </button>
-                {confirmDeleteJob.status === 'failed' && (
-                  <button
-                    className="flex-1 py-2.5 rounded-xl bg-accent border-none text-[14px] font-medium text-white cursor-pointer"
-                    onClick={() => { setConfirmDeleteJob(null); handleRetryProcessingJob(confirmDeleteJob); }}
-                  >
-                    Retry
-                  </button>
-                )}
                 <button
                   className="flex-1 py-2.5 rounded-xl bg-destructive border-none text-[14px] font-medium text-white cursor-pointer"
                   onClick={() => handleDeleteProcessingJob(confirmDeleteJob)}
