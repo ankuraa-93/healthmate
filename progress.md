@@ -891,3 +891,20 @@ Build passes; reset API works + idempotent (25 rows, no accumulation); dates reb
   - `match-food/route.ts` — `quantity_g`/`unit`/`meal_type` are user facts, restored from the original parsed items (by position, name fallback) instead of trusting the matcher to echo them.
   - `AddFoodSheet.tsx` — safety net: invalid quantity falls back to a 100 g/ml serving instead of nulling the insert; and the submit handler now surfaces a "Logged X of Y — N couldn't be saved" toast instead of silently dropping.
 - Verified: parser output stable across 4 runs/input for buttermilk, coffee, lassi, curd — number always preserved. Build clean; server restarted on 3002. **Not yet committed/pushed.**
+
+## UX fixes — food cards, edit quantity, parse failure, sheet height
+- `FoodCard.tsx` — swipe-to-delete no longer fights vertical scroll. The drag now pins the card at `x=0` until the gesture is *confirmed horizontal* (lock at 8px, x-dominant), so a vertical/diagonal scroll can never slide the card open to reveal Delete.
+- `EditFoodSheet.tsx` — quantity field is clearable (`number | ''` state). Empty input shows blank; nutrition computes from 0; `Save Changes` is disabled while empty.
+- `AddFoodSheet.tsx` — on a parse/replace failure, the user's typed text is restored to the input (was being cleared on submit, lost on error).
+- Sheet height: `AddFoodSheet`/`EditFoodSheet` capped with `max-h-[92dvh]`/`88dvh` (was `vh`). On mobile `vh` (large viewport) > `dvh`, so the sheet overflowed and pushed the "Log Food" title above the viewport. With `dvh` the sheet stays on-screen and only the food-card body scrolls (header + composer stay fixed). Per user: keep both the composer and Total row, scrolling is enough.
+- Build clean; server restarted on 3002. **Not yet committed/pushed.**
+
+## Clearable quantity — CLS fix + replicate to tray & photo editor
+- `EditFoodSheet.tsx` — suppress the "Quantity must be greater than zero" warning while the field is empty (`!isEmpty`). It was popping in under the focused field and shifting the nutrition card (CLS).
+- `AddFoodSheet.tsx` tray (Log Food final screen) — quantity field is now clearable via a `qtyDraft` string buffer: empty shows blank and isn't persisted (stays at last valid value), live-saves on a valid number, ± buttons reset the draft. Warning uses the persisted `item.quantity_g` (never 0), so no CLS.
+- `page.tsx` photo "Identified foods" editor — same `photoQtyDraft` buffer; clearable, empty not persisted, ± and toggle reset the draft.
+- Build clean; server restarted on 3002. **Not yet committed/pushed.**
+
+## Clearable quantity — Replace Food card
+- `AddFoodSheet.tsx` replace-success card — same `replacedQtyDraft` buffer pattern: field is clearable, empty isn't persisted (keeps last valid qty), valid number live-saves via `updateReplacedQty`, ± buttons and expand/collapse reset the draft. Now consistent across all four quantity editors (Edit sheet, Log Food tray, photo Identified foods, Replace Food).
+- Build clean; server restarted on 3002. **Not yet committed/pushed.**

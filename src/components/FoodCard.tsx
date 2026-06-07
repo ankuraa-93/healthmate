@@ -34,16 +34,18 @@ export default function FoodCard({ entry, index, showSeparator, onClick, onDelet
     if (!directionLocked.current) {
       const absX = Math.abs(info.offset.x);
       const absY = Math.abs(info.offset.y);
-      if (absX > 12 || absY > 12) {
+      if (absX > 8 || absY > 8) {
         directionLocked.current = absX > absY * 1.5 ? 'x' : 'y';
       }
     }
 
-    if (directionLocked.current === 'y') {
+    // Until the gesture is confirmed as a horizontal swipe, pin the card at 0 so
+    // a vertical (or diagonal) scroll can't slide it open to reveal Delete.
+    if (directionLocked.current !== 'x') {
       x.set(0);
     }
 
-    if (Math.abs(info.offset.x) > 5) {
+    if (directionLocked.current === 'x' && Math.abs(info.offset.x) > 5) {
       didDrag.current = true;
     }
   };

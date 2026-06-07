@@ -47,7 +47,8 @@ const mealTypes = ['breakfast', 'lunch', 'snack', 'dinner'] as const;
 const adjustments = [-50, -10, +10, +50];
 
 export default function EditFoodSheet({ entry, onClose, onSave, onDelete, onReplace }: EditFoodSheetProps) {
-  const [quantity, setQuantity] = useState(0);
+  // '' lets the field be cleared while editing; Save is disabled until it's a number again.
+  const [quantity, setQuantity] = useState<number | ''>(0);
   const [mealType, setMealType] = useState<typeof mealTypes[number]>('snack');
   const [lastEntryId, setLastEntryId] = useState<string | null>(null);
   const [libraryItem, setLibraryItem] = useState<FoodLibraryItem | null>(null);
@@ -82,36 +83,42 @@ export default function EditFoodSheet({ entry, onClose, onSave, onDelete, onRepl
   // Photo-identified foods are tied to the photo's meal — don't allow changing it.
   const mealLocked = entry?.input_source === 'image';
 
+  const qtyNum = quantity === '' ? 0 : quantity;
+
   const nutrition = useMemo(() => {
     if (!entry) return { calories: 0, protein: 0, carbs: 0, fat: 0, fibre: 0 };
-    if (libraryItem) return calculateNutrition(quantity, libraryItem);
-    return scaleNutritionFromEntry(quantity, entry);
-  }, [quantity, entry, libraryItem]);
+    if (libraryItem) return calculateNutrition(qtyNum, libraryItem);
+    return scaleNutritionFromEntry(qtyNum, entry);
+  }, [qtyNum, entry, libraryItem]);
 
   const calPer100 = useMemo(() => {
     if (libraryItem) return libraryItem.calories_per_100g;
     if (entry && entry.quantity_g > 0) return ((entry.calories ?? 0) / entry.quantity_g) * 100;
     return 0;
   }, [entry, libraryItem]);
-  const qtyWarning = entry ? getQuantityWarning(quantity, calPer100) : null;
+  const isEmpty = quantity === '';
+  // While the field is cleared, skip the "must be greater than zero" warning —
+  // it would pop in/out under an actively-edited field and shift the layout (CLS).
+  const qtyWarning = entry && !isEmpty ? getQuantityWarning(qtyNum, calPer100) : null;
 
-  const hasChanges = entry ? (quantity !== entry.quantity_g || mealType !== entry.meal_type) : false;
+  const hasChanges = entry ? (!isEmpty && (quantity !== entry.quantity_g || mealType !== entry.meal_type)) : false;
 
   const handleQuantityChange = (value: string) => {
+    if (value === '') { setQuantity(''); return; }
     const num = parseInt(value, 10);
     if (isNaN(num)) return;
     setQuantity(Math.min(Math.max(num, 1), 9999));
   };
 
   const handleAdjust = (delta: number) => {
-    setQuantity((prev) => Math.min(Math.max(prev + delta, 1), 9999));
+    setQuantity((prev) => Math.min(Math.max((prev === '' ? 0 : prev) + delta, 1), 9999));
   };
 
   const handleSave = () => {
-    if (!entry || !hasChanges) return;
+    if (!entry || !hasChanges || isEmpty) return;
     onSave({
       id: entry.id,
-      quantity_g: quantity,
+      quantity_g: qtyNum,
       ...nutrition,
       meal_type: mealType,
     });
@@ -129,7 +136,7 @@ export default function EditFoodSheet({ entry, onClose, onSave, onDelete, onRepl
             onClick={onClose}
           />
           <motion.div
-            className="absolute bottom-0 left-0 right-0 bg-bg-primary rounded-t-2xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] flex flex-col max-h-[88vh] z-30"
+            className="absolute bottom-0 left-0 right-0 bg-bg-primary rounded-t-2xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] flex flex-col max-h-[88dvh] z-30"
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}

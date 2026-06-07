@@ -103,6 +103,9 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  // Raw text for the quantity field of the currently-expanded tray item, so it can
+  // be cleared while editing ('') instead of snapping back to a digit. null = not editing.
+  const [qtyDraft, setQtyDraft] = useState<string | null>(null);
   const [savingIndices, setSavingIndices] = useState<Set<number>>(new Set());
   const [reviewPhotos, setReviewPhotos] = useState<ReviewPhoto[]>([]);
   const [showPhotoReview, setShowPhotoReview] = useState(false);
@@ -120,6 +123,8 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
   // Replace-mode success: holds the old + new entries once swapped.
   const [replaced, setReplaced] = useState<{ old: FoodLogEntry; entry: FoodLogEntry } | null>(null);
   const [replacedExpanded, setReplacedExpanded] = useState(false);
+  // Raw text for the replaced food's quantity field — clearable ('') while editing. null = not editing.
+  const [replacedQtyDraft, setReplacedQtyDraft] = useState<string | null>(null);
   const [replacedSaving, setReplacedSaving] = useState(false);
 
   const hasContent = input.trim().length > 0;
@@ -210,6 +215,7 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
       setReplaced({ old: target, entry: merged });
     } catch (error) {
       console.error('Replace error:', error);
+      setInput(text); // restore the user's text so they don't have to retype
       onToast?.('Failed to replace food — try again');
     } finally {
       setLoadingMessage(null);
@@ -229,6 +235,13 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
     if (updated) onReplaced?.({ ...updated, image_url: entry.image_url ?? null });
     await delay(300);
     setReplacedSaving(false);
+  };
+
+  const handleReplacedQtyChange = (raw: string) => {
+    setReplacedQtyDraft(raw);
+    if (raw === '') return; // allow an empty field while editing; don't persist a 0
+    const num = parseInt(raw, 10);
+    if (!isNaN(num)) updateReplacedQty(num);
   };
 
   const handleTextSubmit = async () => {
@@ -272,6 +285,7 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
       }
     } catch (error) {
       console.error('Text parse error:', error);
+      setInput(text); // restore the user's text so they don't have to retype
       onToast?.('Failed to parse food — try again');
     } finally {
       setLoadingMessage(null);
@@ -381,7 +395,15 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
   };
 
   const handleToggleExpand = (index: number) => {
+    setQtyDraft(null); // reset the quantity buffer when switching/closing items
     setExpandedIndex(prev => prev === index ? null : index);
+  };
+
+  const handleQtyDraftChange = (index: number, raw: string) => {
+    setQtyDraft(raw);
+    if (raw === '') return; // allow an empty field while editing; don't persist a 0
+    const num = parseInt(raw, 10);
+    if (!isNaN(num)) handleUpdateQuantity(index, num);
   };
 
   // --- Photo handling ---
@@ -456,7 +478,7 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
       />
 
       <motion.div
-        className="absolute bottom-0 left-0 right-0 bg-bg-primary rounded-t-2xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] flex flex-col max-h-[92vh] z-30"
+        className="absolute bottom-0 left-0 right-0 bg-bg-primary rounded-t-2xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] flex flex-col max-h-[92dvh] z-30"
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
@@ -542,7 +564,7 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
                 const unitLabel = e.unit === 'ml' ? 'ml' : 'g';
                 return (
                   <div className="rounded-xl overflow-hidden" style={{ backgroundColor: 'var(--color-card-bg)' }}>
-                    <div className="p-3 px-3.5 cursor-pointer" onClick={() => setReplacedExpanded(v => !v)}>
+                    <div className="p-3 px-3.5 cursor-pointer" onClick={() => { setReplacedQtyDraft(null); setReplacedExpanded(v => !v); }}>
                       <div className="flex items-center gap-3">
                         <FoodThumbnail imageUrl={e.image_url} name={e.food_name} />
                         <div className="flex-1 min-w-0">
@@ -584,8 +606,9 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
                                   type="text"
                                   inputMode="numeric"
                                   className="flex-1 bg-transparent border-none text-[17px] font-medium text-right outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                  value={e.quantity_g}
-                                  onChange={ev => updateReplacedQty(parseInt(ev.target.value) || 0)}
+                                  value={replacedQtyDraft !== null ? replacedQtyDraft : e.quantity_g}
+                                  onChange={ev => handleReplacedQtyChange(ev.target.value)}
+                                  onBlur={() => setReplacedQtyDraft(null)}
                                   onClick={ev => ev.stopPropagation()}
                                 />
                                 <span className="text-[15px] text-text-secondary ml-1.5">{unitLabel}</span>
@@ -595,7 +618,7 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
                                   <motion.button
                                     key={delta}
                                     className="flex-1 py-1.5 bg-bg-primary border-none rounded-full text-[13px] font-medium text-text-secondary cursor-pointer hover:bg-bg-tertiary transition-colors"
-                                    onClick={ev => { ev.stopPropagation(); updateReplacedQty(e.quantity_g + delta); }}
+                                    onClick={ev => { ev.stopPropagation(); setReplacedQtyDraft(null); updateReplacedQty(e.quantity_g + delta); }}
                                     whileTap={{ scale: 0.95 }}
                                   >
                                     {delta > 0 ? '+' : '−'}{Math.abs(delta)}{unitLabel}
@@ -743,8 +766,9 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
                                             type="text"
                                             inputMode="numeric"
                                             className="flex-1 bg-transparent border-none text-[17px] font-medium text-right outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                            value={item.quantity_g}
-                                            onChange={e => handleUpdateQuantity(idx, parseInt(e.target.value) || 0)}
+                                            value={qtyDraft !== null ? qtyDraft : item.quantity_g}
+                                            onChange={e => handleQtyDraftChange(idx, e.target.value)}
+                                            onBlur={() => setQtyDraft(null)}
                                             onClick={e => e.stopPropagation()}
                                           />
                                           <span className="text-[15px] text-text-secondary ml-1.5">{unitLabel}</span>
@@ -762,7 +786,7 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
                                           <motion.button
                                             key={delta}
                                             className="flex-1 py-1.5 bg-bg-primary border-none rounded-full text-[13px] font-medium text-text-secondary cursor-pointer hover:bg-bg-tertiary transition-colors"
-                                            onClick={e => { e.stopPropagation(); handleUpdateQuantity(idx, item.quantity_g + delta); }}
+                                            onClick={e => { e.stopPropagation(); setQtyDraft(null); handleUpdateQuantity(idx, item.quantity_g + delta); }}
                                             whileTap={{ scale: 0.95 }}
                                           >
                                             {delta > 0 ? '+' : '−'}{Math.abs(delta)}{unitLabel}

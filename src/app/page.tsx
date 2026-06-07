@@ -86,6 +86,9 @@ export default function DashboardPage() {
   const [sourceImages, setSourceImages] = useState<SourceImage[]>([]);
   const [expandedPhoto, setExpandedPhoto] = useState<SourceImage | null>(null);
   const [expandedPhotoFoodIdx, setExpandedPhotoFoodIdx] = useState<number | null>(null);
+  // Raw text for the expanded identified-food's quantity field, so it can be cleared
+  // ('') while editing instead of snapping back to a digit. null = not editing.
+  const [photoQtyDraft, setPhotoQtyDraft] = useState<string | null>(null);
   const [expandedJob, setExpandedJob] = useState<ProcessingJob | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<FoodLogEntry | null>(null);
@@ -974,7 +977,7 @@ export default function DashboardPage() {
                       {idx > 0 && <div className="h-px bg-white/10 mx-3.5" />}
                       <div
                         className="p-3 px-3.5 cursor-pointer"
-                        onClick={() => setExpandedPhotoFoodIdx(prev => prev === idx ? null : idx)}
+                        onClick={() => { setPhotoQtyDraft(null); setExpandedPhotoFoodIdx(prev => prev === idx ? null : idx); }}
                       >
                         <div className="flex items-center gap-3">
                           <div className="flex-1 min-w-0">
@@ -1009,9 +1012,14 @@ export default function DashboardPage() {
                                       type="text"
                                       inputMode="numeric"
                                       className="flex-1 bg-transparent border-none text-[17px] font-medium text-white text-right outline-none w-0"
-                                      value={entry.quantity_g}
+                                      value={photoQtyDraft !== null ? photoQtyDraft : entry.quantity_g}
+                                      onBlur={() => setPhotoQtyDraft(null)}
                                       onChange={async (e) => {
-                                        const val = parseInt(e.target.value) || 0;
+                                        const raw = e.target.value;
+                                        setPhotoQtyDraft(raw);
+                                        if (raw === '') return; // allow empty while editing; don't persist a 0
+                                        const val = parseInt(raw, 10);
+                                        if (isNaN(val)) return;
                                         const qty = Math.min(Math.max(val, 1), 9999);
                                         const nutrition = scaleNutritionFromEntry(qty, entry);
                                         const updated = await updateFoodLog(entry.id, { quantity_g: qty, ...nutrition });
@@ -1048,6 +1056,7 @@ export default function DashboardPage() {
                                       key={delta}
                                       className="flex-1 py-1.5 bg-white/10 border-none rounded-full text-[13px] font-medium text-white/70 cursor-pointer"
                                       onClick={async () => {
+                                        setPhotoQtyDraft(null);
                                         const qty = Math.min(Math.max(entry.quantity_g + delta, 1), 9999);
                                         const nutrition = scaleNutritionFromEntry(qty, entry);
                                         const updated = await updateFoodLog(entry.id, { quantity_g: qty, ...nutrition });

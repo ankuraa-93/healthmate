@@ -6,8 +6,6 @@ Instructions:
 - You can rearrange bullets across section if priorities change.
 - When a bullet is completed, strikethrough the bullet and add "- Completed" text next to it, with a green tick emoji.
 
-
-
 ## Vision
 
 Level 1: Flawless voice + image calorie tracking with personalised goals
@@ -15,6 +13,12 @@ Level 1: Flawless voice + image calorie tracking with personalised goals
 Level 2: Workout input to dynamically set daily goals + track weight, body fat%, etc to correct estimates around NEAT calorie expenditure
 
 Level 3: Blood tests suggestions and report intelligence
+
+## Things to do
+
+- ~~Fix bug of quantity fully clear and type again~~ - Completed ✅
+- Onboarding flow
+- Add workout calories
 
 ## v1 Goals
 
@@ -41,12 +45,16 @@ Level 3: Blood tests suggestions and report intelligence
 - ~~Rename app from Calorific to Calorrific (double R — sounds like "terrific")~~ - Completed ✅
 - ~~Fix bottom nav bar scrolling on iOS up-swipe — overscroll-behavior: none on html/body, sticky nav, overscroll-contain on scroll container~~ - Completed ✅
 - ~~Shareable daily log link — logged-in user taps iOS share icon in dashboard header, generates a unique URL. Viewer sees read-only dashboard (same UI: WeekStrip with owner name, calorie ring, macros, meal cards) without FAB, edit, delete, suggestions, or bottom nav. Viewer can navigate between days. Uses share_links DB table + get_shared_log RPC (SECURITY DEFINER) to bypass RLS for public access.~~ - Completed ✅
+- ~~Vertical scroll dragging food cards sideways — swipe-to-delete now pins the card at x=0 until the gesture is confirmed horizontal, so scrolling can't slide cards open to reveal Delete~~ - Completed ✅
+- ~~Bottom sheets capped to the dynamic viewport (`dvh` instead of `vh`, matching the `min-h-dvh` app frame) so the Log Food/Edit title never scrolls above the screen with many items — only the food-card list scrolls~~ - Completed ✅
 
 ### Add Food
 
 - ~~Option to undo in the toast after food is deleted (since there is no confirmation screen after delete)~~ - Completed ✅
 - ~~Warning for erroneous quantities~~ - Completed ✅
 - ~~Grams-for-a-liquid logging bug — entering a weight for a drink (e.g. "150g buttermilk") could silently drop the item (parser emitted `quantity_ml`/null → `quantity_g` NOT NULL insert failure → `filter(Boolean)` swallowed it) or log a wrong default. Fix: canonicalize the amount to `quantity_g` regardless of unit (density ≈ 1, so "150g" and "150ml" both log as 150ml), restore user-given quantity/unit/meal from the parse step instead of trusting the matcher, and surface a "Logged X of Y" toast so no food vanishes silently.~~ - Completed ✅
+- ~~Clearable quantity field — backspace the quantity all the way to empty while editing instead of it snapping back to a digit. Applied consistently across all four quantity editors (Edit Food sheet, Log Food tray, photo "Identified foods", Replace Food); empty isn't persisted (keeps last valid value) and Save is disabled while empty. Also suppressed the "must be greater than zero" warning under a focused field to avoid layout shift (CLS).~~ - Completed ✅
+- ~~Restore typed text when parsing fails — the input was cleared on submit and lost on a parse/match error; now the text is put back so the user doesn't have to retype.~~ - Completed ✅
 
 ### Nutrition & Data
 
@@ -78,7 +86,7 @@ Level 3: Blood tests suggestions and report intelligence
 - ~~Camera badge on photo-identified foods missing on the share viewer — RPC now returns `input_source` and `toFoodLogEntry` maps it (logger/viewer consistency)~~ - Completed ✅
 - ~~Guest demo mode — "Continue as guest" on the auth screen lets recruiters/visitors explore a populated demo account without signing up. One shared `demo@calorrific.app` account reset to a curated seed day (today-relative dates; two photo-logged meals + a few history days for calendar dots) on every entry via `/api/demo/reset` (service role, delete-then-insert). One-time guest-welcome bottom sheet (shown only on the click) nudges toward voice/image logging.~~ - Completed ✅
 - Fix quantities for egg and egg white for every instance - it takes a different value everytime (say if user says 1 boiled egg, log as 50g boiled egg)
-- Consistently boiled egg white is identified as boiled egg from image by Gemini 
+- Consistently boiled egg white is identified as boiled egg from image by Gemini
 
 ---
 
@@ -94,9 +102,7 @@ Level 3: Blood tests suggestions and report intelligence
 - High protein, high carb, high fat, high fibre tags instead of detailed values
 - Give cues to the user during on what macros to focus on
 - Loading states animations/visuals + other "cool" things
-- "Did you mean?" disambiguation flow — when Gemini encounters ambiguous terms (e.g., "eggs" could be scrambled, boiled, fried, omelette), show a disambiguation screen with options instead of defaulting. Needs new UI screen + Gemini prompt changes to flag ambiguous items.
-- Meal level summaries of cal + macros — calories done (inline after meal name with dot separator), macros not yet
-- Add Noice (Swiggy Instamart private label) products — 200+ artisanal items across bakery, dairy, snacks, beverages, sweets. No public nutrition data yet; need actual packaging labels from Swiggy app or physical products. Start with top sellers: malai paneer, butter cookies, coconut water, spicy potato chips, banana chips, kaju katli, Punjabi lassi, sourdough bread.
+- ~Meal level summaries of cal + macros — calories done (inline after meal name with dot separator), macros not yet~ - Completed ✅
 - Dynamic goal setting: change calorie and macro targets for remaining days based on week-till-date logs. Also possible to include workout data to change calorie goals.
 
 ---
@@ -107,10 +113,12 @@ Level 3: Blood tests suggestions and report intelligence
 - Streak tracking (days meeting goals)
 - Nutrition insights ("You're consistently low on fibre")
 - Export food log as CSV
+- "Did you mean?" disambiguation flow — when Gemini encounters ambiguous terms (e.g., "eggs" could be scrambled, boiled, fried, omelette), show a disambiguation screen with options instead of defaulting. Needs new UI screen + Gemini prompt changes to flag ambiguous items.
 - Haptic feedback on mobile (vibrate on tap, delete, submit)
 - Skeleton loading states while data fetches
 - Empty states for no meals logged yet
 - Onboarding flow for first-time users (set goals, explain natural language input)
 - Dark mode
 - Change grouping by food type on daily view (unhealthy snacks, high sugar, whole foods etc.)
+- Add Noice (Swiggy Instamart private label) products — 200+ artisanal items across bakery, dairy, snacks, beverages, sweets. No public nutrition data yet; need actual packaging labels from Swiggy app or physical products. Start with top sellers: malai paneer, butter cookies, coconut water, spicy potato chips, banana chips, kaju katli, Punjabi lassi, sourdough bread.
 
