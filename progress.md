@@ -997,8 +997,45 @@ Open / next: (1) user testing of all flows; (2) deploy to Vercel once confirmed;
 - "Your personalized goals" review screen converted from a full page into a **bottom sheet** (`src/components/PersonalizedGoalsSheet.tsx`, reusing EditFoodSheet's shell: drag handle, spring slide-up, drag/backdrop/X dismiss, max-h-[88dvh], pinned Save). Slides up over the "Tell us about you" form. `Estimate` interface + `CALORIE_GOAL_FLOOR` moved to `src/lib/goals.ts`; review JSX removed from `PersonalizeGoalsFlow` (now renders form + `<AnimatePresence>` sheet). Close → Settings (from Daily Goals/mode=goals) or form (from Proceed); "Edit details" reveals the form.
 - `next build` clean; runs on :3002.
 
+### Goals UI polish + onboarding sheet (2026-06-08 continued, commit 38fe72a)
+Deployed to prod (merged `feat/personalized-goals` → main → Vercel auto-deploy).
+
+**UI polish:**
+- Settings + form row text stepped to 14px (matches dashboard FoodCard)
+- "About you" form split into 3 cards: Basics (sex, DOB, height, weight), Weekly activity (standalone textarea, no card wrapper), Goal (weight goal, target pace)
+- Numeric field spinners removed (`type="text" inputMode="numeric"`); fields widened to prevent digit clipping
+- Help text: "At this rate, you'll be X kg in 3 months" (was 6mo)
+- CTA: "Calculate daily goals" (was "Proceed"); title "About you" (was "Tell us about you"), styled to match Settings heading (22px font-medium)
+- Back button above title (same line attempt didn't look good — reverted)
+- Settings: Pencil icons → ChevronRight; About You field order matches form order
+- Form restores last saved values on Calculate failure
+
+**Goals review sheet redesign (PersonalizedGoalsSheet):**
+- Hero section: centered Zap icon in accent circle, 40px bold calorie number in accent color, deficit/surplus summary
+- Maintenance breakdown: 3-part stacked bar (resting/non-exercise/exercise) with legend; "Based on your latest inputs" warm strip at bottom (matches DefaultGoalsSuggestion style) with "Edit" CTA
+- Single "Daily Goals" card: 5 rows (Calories expandable with ChevronDown → ±50/±100 chips; Protein, Carbs, Fat, Fibre)
+- Maintenance + parts rounded to nearest 50; macros rounded to nearest 5
+- Daily Goals chevron on settings opens sheet in-place (no page navigation); saving updates profile + closes sheet
+
+**Activity prompt tightening (gemini.ts):**
+- 1.55 explicitly capped as the typical ceiling for recreational exercisers (was over-estimating at 1.725)
+- Calibration examples added ("6hrs gym + 3hrs racquet sports → 1.55")
+- 1.725 gate: requires hard training + physically active job/lifestyle
+- "Err toward the lower factor when in doubt"
+
+**Onboarding bottom sheet (new, partially done):**
+- `src/components/OnboardingSheet.tsx` — replaces full-page `/onboarding` redirect for new signups
+- Pitch screen: Sparkles icon, "Set your daily goals", explanation, "Personalise my goals" CTA + "Skip for now"
+- Skip confirmation: warm warning box (generic 2000 cal), "Use default goals" + "Go back"
+- Dashboard shows sheet when `localStorage hm_onboard_pending` is set OR `?onboard` query param (for testing)
+- **User wants to refine this further in next session** — content/design not finalized
+
+**Shared code refactors:**
+- `ageFromDob` and `estimateFromProfile` moved from PersonalizeGoalsFlow to `src/lib/goals.ts` (shared by settings page)
+- Unused HEADING const, router import cleaned up
+
 ### >>> RESUME HERE next session
-1. **Not deployed.** All work is on branch `feat/personalized-goals` (committed locally, NOT pushed). Both DB migrations already applied to live Supabase (additive). To ship: `git checkout main && git merge feat/personalized-goals && git push` (push = Vercel deploy).
-2. **User still needs to test all flows** before deploy (signup→onboarding, About You edit, Daily Goals edit→sheet, dashboard nudge, reset script).
-3. To re-test from scratch: `node reset-my-goals.mjs` (resets user to default goals).
+1. **Deployed to prod** (commit `38fe72a`, main branch, Vercel auto-deploy).
+2. **Onboarding sheet needs refinement** — user has changes in mind for content/design. Test with `localhost:3002?onboard`.
+3. To re-test goals from scratch: `node reset-my-goals.mjs` (resets user to default goals).
 4. Deferred queue (in order): safety floors (min-cal clamp + aggressive-deficit warning) → goal-aware color coding (CalorieRing/MacroGrid) → adaptive TDEE (needs weight log) → dynamic daily goals (uses stored activity_workouts).
