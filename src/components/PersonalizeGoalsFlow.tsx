@@ -2,11 +2,12 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Mic, Loader2, Sparkles, TrendingDown, TrendingUp, Minus, Plus, Drumstick, Wheat, Droplet, Leaf } from 'lucide-react';
+import { ChevronLeft, Mic, Loader2, TrendingDown, TrendingUp, Minus, Plus } from 'lucide-react';
 import { Profile } from '@/lib/types';
-import { computeGoals, macrosForCalories, mifflinStJeorBMR, KCAL_PER_KG_BODYWEIGHT, type GoalType, type Sex, type WorkoutEntry, type ComputedGoals } from '@/lib/goals';
+import { computeGoals, macrosForCalories, mifflinStJeorBMR, CALORIE_GOAL_FLOOR, type GoalType, type Sex, type Estimate } from '@/lib/goals';
 import { updateProfile } from '@/lib/supabase-data';
 import { useVoiceInput } from '@/lib/useVoiceInput';
+import PersonalizedGoalsSheet from '@/components/PersonalizedGoalsSheet';
 
 interface Props {
   userId: string;
@@ -24,8 +25,6 @@ const PACE_STEP = 0.5;  // target weight change adjusts in 0.5 kg/month steps
 const PACE_MIN = 0.5;
 const PACE_MAX = 4;
 
-const CALORIE_FLOOR = 800;  // floor for the editable calorie goal
-
 const HEADING = 'text-xs font-medium text-text-secondary uppercase tracking-wide mb-2 block';
 
 const CM_PER_INCH = 2.54;
@@ -42,16 +41,6 @@ function ageFromDob(y: number, m: number, d: number): number | null {
   let age = now.getFullYear() - y;
   if (now.getMonth() < m - 1 || (now.getMonth() === m - 1 && now.getDate() < d)) age--;
   return age;
-}
-
-interface Estimate {
-  goals: ComputedGoals;
-  rationale: string;
-  activity_factor: number;
-  does_resistance_training: boolean;
-  workouts: WorkoutEntry[];
-  bmr: number;   // resting (Mifflin–St Jeor)
-  tdee: number;  // maintenance = bmr × activity factor
 }
 
 // Rebuild the review-screen estimate from a saved profile (activity factor etc.
@@ -197,7 +186,7 @@ export default function PersonalizeGoalsFlow({ userId, profile, onSaved, onBack,
   const handleSave = async () => {
     if (!estimate || !sex || dobAge == null) return;
     setSaving(true);
-    const calories = Math.max(CALORIE_FLOOR, calorieGoal === '' ? estimate.goals.calories : calorieGoal);
+    const calories = Math.max(CALORIE_GOAL_FLOOR, calorieGoal === '' ? estimate.goals.calories : calorieGoal);
     const macros = macrosForCalories({ calories, weight_kg: weightN, does_resistance_training: estimate.does_resistance_training });
     const birth_date = `${Number(birthYear)}-${String(Number(birthMonth)).padStart(2, '0')}-${String(Number(birthDay)).padStart(2, '0')}`;
     const updated = await updateProfile(userId, {
@@ -224,161 +213,13 @@ export default function PersonalizeGoalsFlow({ userId, profile, onSaved, onBack,
     else onToast?.('Could not save — please try again');
   };
 
-  // --- Review screen ---
-  if (estimate) {
-    const recommended = estimate.goals.calories;
-    const calNum = calorieGoal === '' ? recommended : calorieGoal;
-    const m = macrosForCalories({ calories: calNum, weight_kg: weightN, does_resistance_training: estimate.does_resistance_training });
-    const macros = [
-      { label: 'Protein', value: m.protein, Icon: Drumstick },
-      { label: 'Carbs', value: m.carbs, Icon: Wheat },
-      { label: 'Fat', value: m.fat, Icon: Droplet },
-      { label: 'Fibre', value: m.fibre, Icon: Leaf },
-    ];
+  // Dismissing the goals sheet: if we opened straight into it (Daily Goals edit),
+  // go back to where we came from; otherwise reveal the input form behind it.
+  const closeSheet = () => { if (initialView === 'review') onBack(); else setEstimate(null); };
 
-    const adjustCalories = (delta: number) =>
-      setCalorieGoal((prev) => Math.min(9999, Math.max(CALORIE_FLOOR, (prev === '' ? recommended : prev) + delta)));
-    const onCalInput = (value: string) => {
-      if (value === '') { setCalorieGoal(''); return; }
-      const n = parseInt(value, 10);
-      if (!isNaN(n)) setCalorieGoal(Math.min(9999, Math.max(0, n)));
-    };
-
-    // Live breakdown: maintenance (resting + activity) vs the editable target.
-    const maintenance = Math.round(estimate.tdee);
-    const resting = Math.round(estimate.bmr);
-    const activityCals = Math.max(0, maintenance - resting);
-    const scaleMax = Math.max(maintenance, calNum) || 1;
-    const diff = maintenance - calNum;          // > 0 deficit (loss), < 0 surplus (gain)
-    const kgPerMonth = (Math.abs(diff) * 30) / KCAL_PER_KG_BODYWEIGHT;
-    const pct = (v: number) => `${(v / scaleMax) * 100}%`;
-
-    return (
-      <motion.div className="flex flex-col" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }}>
-        <button onClick={() => setEstimate(null)} className="flex items-center gap-1 text-[15px] text-text-secondary bg-transparent border-none cursor-pointer p-0 -mt-9 mb-4">
-          <ChevronLeft size={18} /> Edit details
-        </button>
-
-        <h2 className="text-[20px] font-semibold mb-1">Your personalized goals</h2>
-        {estimate.rationale && (
-          <p className="text-[13px] text-text-secondary flex items-start gap-1.5 mb-5">
-            <Sparkles size={14} className="text-accent mt-0.5 flex-shrink-0" />
-            {estimate.rationale}
-          </p>
-        )}
-
-        {/* Your daily goal — editable bar + adjust pills (EditFood pattern) */}
-        <div className="mb-5">
-          <div className={`${HEADING} flex items-center justify-between`}>
-            <span>Your daily goal</span>
-            {calNum !== recommended && (
-              <span className="text-text-tertiary normal-case tracking-normal">Recommended {recommended}</span>
-            )}
-          </div>
-          <div className="flex items-center bg-bg-secondary rounded-xl px-4 py-3 mb-3 focus-within:ring-2 focus-within:ring-accent/25 transition-shadow">
-            <input
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              value={calorieGoal}
-              onChange={(e) => onCalInput(e.target.value)}
-              className="flex-1 bg-transparent border-none text-[17px] font-medium text-right outline-none w-full"
-            />
-            <span className="text-[15px] text-text-secondary ml-1.5">cal</span>
-          </div>
-          <div className="flex gap-2">
-            {[-200, -100, 100, 200].map((delta) => (
-              <button
-                key={delta}
-                onClick={() => adjustCalories(delta)}
-                className="flex-1 bg-bg-secondary rounded-full py-1.5 text-[13px] font-medium text-text-secondary border-none cursor-pointer hover:bg-bg-tertiary transition-colors"
-              >
-                {delta > 0 ? `+${delta}` : `${delta}`}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Macros — title inside the card */}
-        <div className="bg-bg-secondary rounded-xl px-4 pb-4 mb-5">
-          <div className="text-xs font-medium text-text-secondary uppercase tracking-wide pt-3 pb-2.5">Macros</div>
-          <div className="grid grid-cols-2 gap-y-3 gap-x-8">
-            {macros.map((macro) => (
-              <div key={macro.label} className="flex items-center gap-2">
-                <macro.Icon size={14} className="text-text-secondary flex-shrink-0" />
-                <span className="text-[13px] text-text-secondary">{macro.label}</span>
-                <span className="text-[14px] font-medium ml-auto tabular-nums">{macro.value}g</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Daily breakdown — title inside; sits at the bottom; updates live */}
-        <div className="bg-bg-secondary rounded-xl px-4 pb-4 mb-6">
-          <div className="text-xs font-medium text-text-secondary uppercase tracking-wide pt-3 pb-2.5">Daily breakdown</div>
-
-          {/* Maintenance: resting + activity */}
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[13px] text-text-secondary">Maintenance calories</span>
-            <span className="text-[13px] font-medium tabular-nums">{maintenance} cal</span>
-          </div>
-          <div className="h-2.5 rounded-full overflow-hidden flex bg-bg-tertiary mb-1.5">
-            <div style={{ width: pct(resting), backgroundColor: 'var(--color-accent-secondary)' }} />
-            <div style={{ width: pct(activityCals), backgroundColor: 'var(--color-warning)' }} />
-          </div>
-          <div className="flex items-center gap-3 mb-4 text-[11px] text-text-tertiary">
-            <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: 'var(--color-accent-secondary)' }} />
-              Resting {resting}
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: 'var(--color-warning)' }} />
-              Activity {activityCals}
-            </span>
-          </div>
-
-          {/* Target, with the deficit/surplus region highlighted */}
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[13px] text-text-secondary">Target calories</span>
-            <span className="text-[13px] font-medium tabular-nums">{calNum} cal</span>
-          </div>
-          <div className="h-2.5 rounded-full overflow-hidden flex bg-bg-tertiary mb-3">
-            <div style={{ width: pct(Math.min(calNum, maintenance)), backgroundColor: 'var(--color-accent)' }} />
-            {diff < 0
-              ? <div style={{ width: pct(-diff), backgroundColor: 'var(--color-accent)', opacity: 0.4 }} />
-              : diff > 0
-                ? <div style={{ width: pct(diff), backgroundColor: 'var(--color-warning)', opacity: 0.3 }} />
-                : null}
-          </div>
-
-          {/* Live summary */}
-          <div className="flex items-center justify-between border-t border-bg-tertiary/60 pt-3">
-            <span className="text-[13px] text-text-secondary">
-              {diff > 0
-                ? `${diff} cal/day deficit`
-                : diff < 0
-                  ? `${-diff} cal/day surplus`
-                  : 'At maintenance'}
-            </span>
-            <span className={`text-[14px] font-semibold ${diff === 0 ? 'text-text-secondary' : 'text-accent'}`}>
-              {diff === 0 ? '—' : `${kgPerMonth.toFixed(1)} kg/mo ${diff > 0 ? 'lost' : 'gained'}`}
-            </span>
-          </div>
-        </div>
-
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="w-full bg-accent text-white rounded-xl h-[50px] text-[17px] font-medium border-none cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
-        >
-          {saving ? <Loader2 size={18} className="animate-spin" /> : saveLabel}
-        </button>
-      </motion.div>
-    );
-  }
-
-  // --- Form screen ---
+  // --- Form screen + the goals review as a bottom sheet over it ---
   return (
+    <>
     <motion.div className="flex flex-col" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <button onClick={onBack} className="flex items-center gap-1 text-[15px] text-text-secondary bg-transparent border-none cursor-pointer p-0 -mt-9 mb-4">
         <ChevronLeft size={18} /> Back
@@ -553,6 +394,23 @@ export default function PersonalizeGoalsFlow({ userId, profile, onSaved, onBack,
         {estimating ? <><Loader2 size={18} className="animate-spin" /> Calculating…</> : 'Proceed'}
       </button>
     </motion.div>
+
+    <AnimatePresence>
+      {estimate && (
+        <PersonalizedGoalsSheet
+          estimate={estimate}
+          weightKg={weightN}
+          calorieGoal={calorieGoal}
+          setCalorieGoal={setCalorieGoal}
+          saving={saving}
+          saveLabel={saveLabel}
+          onClose={closeSheet}
+          onEditDetails={() => setEstimate(null)}
+          onSave={handleSave}
+        />
+      )}
+    </AnimatePresence>
+    </>
   );
 }
 

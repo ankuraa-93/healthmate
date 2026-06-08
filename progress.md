@@ -992,3 +992,13 @@ This session added, on top of the earlier personalized-goals work:
 State: both migrations applied to live Supabase (additive — old deployed frontend unaffected); local prod server on :3002; `next build` clean.
 
 Open / next: (1) user testing of all flows; (2) deploy to Vercel once confirmed; (3) deferred — safety floors (next), goal-aware color coding, adaptive TDEE (needs weight log), dynamic daily goals (uses stored `activity_workouts`).
+
+### Bottom-sheet refactor (2026-06-08, after commit 014d5f6)
+- "Your personalized goals" review screen converted from a full page into a **bottom sheet** (`src/components/PersonalizedGoalsSheet.tsx`, reusing EditFoodSheet's shell: drag handle, spring slide-up, drag/backdrop/X dismiss, max-h-[88dvh], pinned Save). Slides up over the "Tell us about you" form. `Estimate` interface + `CALORIE_GOAL_FLOOR` moved to `src/lib/goals.ts`; review JSX removed from `PersonalizeGoalsFlow` (now renders form + `<AnimatePresence>` sheet). Close → Settings (from Daily Goals/mode=goals) or form (from Proceed); "Edit details" reveals the form.
+- `next build` clean; runs on :3002.
+
+### >>> RESUME HERE next session
+1. **Not deployed.** All work is on branch `feat/personalized-goals` (committed locally, NOT pushed). Both DB migrations already applied to live Supabase (additive). To ship: `git checkout main && git merge feat/personalized-goals && git push` (push = Vercel deploy).
+2. **User still needs to test all flows** before deploy (signup→onboarding, About You edit, Daily Goals edit→sheet, dashboard nudge, reset script).
+3. To re-test from scratch: `node reset-my-goals.mjs` (resets user to default goals).
+4. Deferred queue (in order): safety floors (min-cal clamp + aggressive-deficit warning) → goal-aware color coding (CalorieRing/MacroGrid) → adaptive TDEE (needs weight log) → dynamic daily goals (uses stored activity_workouts).

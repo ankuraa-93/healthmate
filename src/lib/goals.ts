@@ -40,6 +40,19 @@ export interface ComputedGoals {
   fibre: number;
 }
 
+/** Assembled estimate shown on the "Your personalized goals" review sheet. */
+export interface Estimate {
+  goals: ComputedGoals;
+  rationale: string;
+  activity_factor: number;
+  does_resistance_training: boolean;
+  workouts: WorkoutEntry[];
+  bmr: number;   // resting (Mifflin–St Jeor)
+  tdee: number;  // maintenance = bmr × activity factor
+}
+
+export const CALORIE_GOAL_FLOOR = 800; // floor for the editable calorie goal
+
 
 /** Mifflin–St Jeor basal metabolic rate (kcal/day). */
 export function mifflinStJeorBMR({ sex, age, height_cm, weight_kg }: {
