@@ -21,6 +21,8 @@ export async function fetchProfile(userId: string): Promise<Profile | null> {
 
 export async function updateProfile(userId: string, updates: Partial<Pick<Profile,
   'display_name' | 'daily_calorie_goal' | 'daily_protein_goal' | 'daily_carbs_goal' | 'daily_fat_goal' | 'daily_fibre_goal'
+  | 'sex' | 'age' | 'birth_date' | 'height_cm' | 'weight_kg' | 'activity_description' | 'activity_factor'
+  | 'does_resistance_training' | 'activity_workouts' | 'goal_type' | 'goal_pace_kg_per_month' | 'goals_mode'
 >>): Promise<Profile | null> {
   const { data, error } = await supabase
     .from('profiles')

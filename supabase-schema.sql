@@ -53,6 +53,20 @@ create table profiles (
   daily_carbs_goal numeric default 250,
   daily_fat_goal numeric default 65,
   daily_fibre_goal numeric default 30,
+  -- Goal-personalization inputs (see migrations/add-goal-personalization.sql).
+  -- The daily_*_goal columns above are the COMPUTED OUTPUT; these are the INPUTS.
+  sex text,                                  -- 'male' | 'female'
+  age integer,
+  birth_date date,                           -- source of truth; age is derived
+  height_cm numeric,
+  weight_kg numeric,
+  activity_description text,                  -- raw free text, re-editable
+  activity_factor numeric,                   -- 1.2–1.9, Gemini-estimated
+  does_resistance_training boolean,
+  activity_workouts jsonb,                    -- WorkoutEntry[] — for future dynamic daily goals
+  goal_type text,                            -- 'lose' | 'maintain' | 'gain'
+  goal_pace_kg_per_month numeric,
+  goals_mode text not null default 'default', -- 'default' | 'personalized' | 'manual'
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );

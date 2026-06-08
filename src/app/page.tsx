@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect, TouchEvent } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { RefreshCw, X, Trash2, AlertCircle, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
@@ -14,6 +15,7 @@ import EditFoodSheet from '@/components/EditFoodSheet';
 import Toast from '@/components/Toast';
 import WeekStrip from '@/components/WeekStrip';
 import GuestWelcome from '@/components/GuestWelcome';
+import DefaultGoalsSuggestion from '@/components/DefaultGoalsSuggestion';
 import { useAuth } from '@/components/AuthProvider';
 import { DEMO_USER_ID } from '@/lib/demo';
 import { fetchFoodLogs, fetchProfile, updateFoodLog, deleteFoodLog, insertFoodLog, fetchSuggestions, fetchWeeklyCalories, getOrCreateShareLink, SuggestedFood, insertProcessingJob, deleteProcessingJob, updateProcessingJob, fetchProcessingJobs, uploadFoodPhoto, fetchSourceImages, SourceImage } from '@/lib/supabase-data';
@@ -59,6 +61,7 @@ const defaultProfile: Profile = {
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const router = useRouter();
   // True only when the visitor just clicked "Continue as guest" (auth page sets
   // a one-shot flag). Consumed at mount so a refresh or persisted demo session
   // won't re-trigger the welcome.
@@ -190,6 +193,17 @@ export default function DashboardPage() {
     if (!user) return;
     fetchProfile(user.id).then(p => { if (p) setProfile(p); });
   }, [user]);
+
+  // Soft onboarding safety-net: a brand-new account flagged at sign-up (and not
+  // yet routed, e.g. after email confirmation) gets sent to goal personalization
+  // once. Clearing the flag first makes it strictly one-shot.
+  useEffect(() => {
+    if (!user) return;
+    if (typeof window !== 'undefined' && localStorage.getItem('hm_onboard_pending')) {
+      localStorage.removeItem('hm_onboard_pending');
+      router.replace('/onboarding');
+    }
+  }, [user, router]);
 
   useEffect(() => {
     if (!user) return;
@@ -671,6 +685,11 @@ export default function DashboardPage() {
             calorieRatio={totals.calories / profile.daily_calorie_goal}
           />
         </motion.div>
+
+        {/* Personalise-goals nudge — only while on defaults (not for the demo account) */}
+        {(profile.goals_mode ?? 'default') === 'default' && user?.id !== DEMO_USER_ID && (
+          <DefaultGoalsSuggestion href="/onboarding?mode=personalize" className="bg-[#FFF4E6] rounded-xl px-3.5 py-3 mb-4" />
+        )}
 
         {/* Photo tray */}
         {(sourceImages.length > 0 || processingJobs.length > 0) && (

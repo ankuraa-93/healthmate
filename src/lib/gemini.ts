@@ -18,6 +18,37 @@ export const flashModelWithSearch = genAI.getGenerativeModel({
   tools: [{ googleSearch: {} } as never],
 });
 
+export const ACTIVITY_ESTIMATE_PROMPT = `You estimate physical-activity level for a calorie/TDEE calculator from a free-text description of what a person does in a typical week.
+
+Return ONLY JSON in this exact shape:
+{
+  "activity_factor": number,            // one of 1.2, 1.375, 1.55, 1.725, 1.9
+  "does_resistance_training": boolean,  // true if any weightlifting / strength / resistance training
+  "rationale": string,                  // ONE short sentence a coach could read, e.g. "Moderately active — regular weightlifting plus racquet sports"
+  "workouts": [                          // one entry per distinct activity mentioned; [] if none
+    {
+      "activity": string,               // e.g. "weightlifting", "table tennis", "running"
+      "sessions_per_week": number,      // best estimate of sessions/week
+      "minutes_per_session": number,    // best estimate of minutes per session
+      "intensity": "low" | "moderate" | "high"
+    }
+  ]
+}
+
+Map total weekly activity to the standard factor bands:
+- 1.2   sedentary: little or no exercise
+- 1.375 lightly active: light exercise 1–3 days/week
+- 1.55  moderately active: moderate exercise 3–5 days/week
+- 1.725 very active: hard exercise 6–7 days/week
+- 1.9   extra active: very hard exercise daily + physical job
+
+Notes:
+- The user often describes activity as weekly totals (e.g. "4 hours of weightlifting a week, 2 hours table tennis"). Convert hours to sessions/minutes sensibly (e.g. 4 hours weightlifting ≈ 4 sessions × 60 min, or 3 × 80 — use judgement).
+- If an amount is given WITHOUT a time period (e.g. "4 hours gym", "8000 steps"), assume it is PER WEEK — except step counts and other clearly-daily phrasings, which are per day.
+- Set does_resistance_training true for weightlifting, gym strength work, resistance/strength training, bodyweight strength. Racquet sports, running, cycling, yoga alone do NOT count.
+- If the description is empty or implies no real exercise, return factor 1.2 and an empty workouts array.
+- Do not include any text outside the JSON.`;
+
 export const PARSE_SYSTEM_PROMPT = `You are a food parsing engine for an Indian calorie tracking app called Calorrific.
 
 Your job: take natural language food input and return structured JSON.

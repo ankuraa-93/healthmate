@@ -932,3 +932,63 @@ Build passes; reset API works + idempotent (25 rows, no accumulation); dates reb
 - Account `e0a50ceb` had 0 processing_jobs (user deleted all failed test photos via UI). Removed the orphaned seeded storage file `…/1780834381517-failtest.jpg`.
 - Final image-failure behavior: failed photos kept (not discarded), image recovered from storage for retry (survives reload/tab-switch), retry from viewer or actionable failure toasts ("Food identification failed" / "No food found in photo"); retry-failed toast is plain "Still couldn't identify the foods - retry in some time" (no button, 4s); failed photos shown only in top tray, not the meal section; viewer copy "Food identification failed / Temporary issue - try again"; delete-confirm popup no longer offers Retry.
 - Build clean; server on 3002.
+
+- Shipped: committed `00f9ef0`, pushed to `main` → Vercel prod (calorrific.vercel.app).
+
+## Auth logout investigation (2026-06-08) — diagnosed, fix deferred
+- User reported repeated logouts: "Logged 0 of 3 — try again" when logging food → bounced to /auth; logged back in, ~30min later a fresh Chrome tab was logged out again. Started today evening, not happening before.
+- Investigated, no code changes made. Findings:
+  - **Root code defect: no `middleware.ts` exists.** App uses `@supabase/ssr` (`createBrowserClient`/`createServerClient`, cookie-stored session) which *requires* a session-refresh middleware calling `supabase.auth.getUser()` on every request. Its absence is the classic "constantly logged out" cause. Browser→RLS inserts (`insertFoodLog`, supabase-data.ts:60) return null when the token can't refresh → "0 of 3"; near-simultaneous `onAuthStateChange` SIGNED_OUT (AuthProvider.tsx:38) → /auth. 30min < 1hr default JWT lifetime ⇒ a *refresh* failure, not normal expiry.
+  - **But no auth code changed today** (supabase.ts May 26, AuthProvider May 31, last commit Jun 7; `signOut()` only in settings/page.tsx:42). Sudden onset points to a Supabase-side change — top suspect: anon key / JWT signing-key rotation or legacy-key disable (invalidates all session cookies → mass logout); also possible: auth-settings change or multi-tab refresh-token races.
+- **Decision: wait and see — likely transient. Fix only if it recurs.** If it does: (1) add the standard `@supabase/ssr` middleware (durable, low-risk); (2) check browser Console for `Invalid Refresh Token`/`AuthApiError` at logout; (3) Supabase Dashboard → Settings→API: did anon key rotate / still match `NEXT_PUBLIC_SUPABASE_ANON_KEY` in Vercel prod?; (4) Supabase → Auth → Logs for token-refresh failures.
+- Memory added: project_auth_logout_watch.md.
+
+## Personalized calorie/macro goals (2026-06-08) — built, pending DB migration
+
+Most-requested feature: per-user goals instead of the 2000-cal default (trainers confused because color-coding judged everyone against the same wrong target).
+
+**Approach (agreed with user):** formula-based, no adaptive TDEE yet. Activity captured as **free text + voice** (not an activity-level dropdown) → Gemini estimates the activity factor + a resistance-training flag + a structured workout list. Mifflin–St Jeor BMR → TDEE → goal-adjusted calories → macros. Protein leans to minimum requirement (1.0 g/kg general, 1.5 g/kg if resistance training) per user's note that 2 g/kg over-shoots for typical Indian users. Pace in **kg/month**. Metric only.
+
+**Explicitly out of scope (user calls):** adaptive TDEE, color-coding changes, safety floors / min-cal clamp, disclaimer. Workout extraction stored now but unused — future "dynamic daily goals" data.
+
+**Built:**
+- `src/lib/goals.ts` — pure engine (BMR/TDEE/macros + manual-edit sanity helpers: caloriesFromMacros, macrosReconcile, carbsToMatchCalories). Tunable constants at top.
+- `migrations/add-goal-personalization.sql` — adds biometric/activity/goal inputs + `activity_workouts jsonb` + `goals_mode` to profiles (additive, `add column if not exists`). Also reflected in `supabase-schema.sql`.
+- `src/lib/gemini.ts` — `ACTIVITY_ESTIMATE_PROMPT` (free text → {activity_factor, does_resistance_training, rationale, workouts[]}).
+- `src/app/api/estimate-activity/route.ts`, `src/app/api/transcribe/route.ts` (Whisper-only, sport word-list prompt).
+- `src/lib/useVoiceInput.ts` — recording hook factored out of AddFoodSheet's logic, reused by the activity field.
+- `src/components/PersonalizeGoalsFlow.tsx` (form → compute → review→save) + `ManualGoalsEditor.tsx` (live macro↔calorie sanity, "Fix" matches carbs).
+- `src/app/onboarding/page.tsx` — chooser (Personalize / Manual / Skip); reused by Settings via `?from=settings&mode=...`.
+- Soft onboarding routing: signup sets `localStorage hm_onboard_pending` + pushes `/onboarding`; dashboard safety-net redirects once (covers email-confirm path). No middleware touched (avoids auth-logout area).
+- Settings: read-only goals now show mode (Using defaults / Personalized / Custom) + two entry rows (Personalize / Edit manually).
+
+**Status:** `next build` clean, prod server on :3002. **Blocked on running `migrations/add-goal-personalization.sql` against Supabase** before save works end-to-end (reads degrade gracefully until then).
+
+### Flow update (2026-06-08, later) — removed manual entry, added adjustable calorie target
+- **Removed "enter values manually" entirely**: deleted `ManualGoalsEditor.tsx`, removed the manual card from onboarding chooser + the edit bottom-sheet in Settings (Settings pencil now goes straight to personalize). Dropped now-dead sanity helpers (caloriesFromMacros/macrosReconcile/carbsToMatchCalories) from goals.ts.
+- **Review screen is now adjustable**: ±100 kcal stepper on the personalized calorie target. Macros re-flow live via new `macrosForCalories()` (protein holds steady — bodyweight-based; fat 27%, carbs remainder, fibre scale with the new calories). Capped at the recommendation (can only trim down), floor guard 800. Shows "X below recommended" when trimmed.
+- Verified the nudge + edit do NOT appear on share links (ShareDashboard is a separate read-only component, renders its own ring/macros, no goals_mode/onboarding refs).
+- Note: hit the documented rapid-rebuild cache corruption (all routes 404 with not-found HTML, missing page.js) → fixed with `rm -rf .next node_modules/.cache` + rebuild.
+
+### "Tell us about you" form revamp + testing helper (2026-06-08)
+- **DOB instead of age**: three fields (DD/MM/YYYY), age derived via `ageFromDob()`. New `birth_date date` column (`migrations/add-birth-date.sql`) as source of truth so re-edit prefills; `age` still stored (computed).
+- **Height ft+in / cm tabs** (ft+in default), stored canonically as cm. Weight unchanged.
+- **Voice mic moved to bottom-left** of the activity textarea (Log Food convention) + new design rule saved: textbox action buttons go bottom-left.
+- Removed the "we'll estimate…" help text; **CTA → "Proceed"**; **"Your goal" → "Weight goal"**; pace label → "Target weight loss/gain"; chips show "N kg/mo"; added 6-month projection help text ("Your weight goal is X kg in 6 months from now").
+- **Settings**: edit pencil now only shows for personalised users; default users get the "Personalise now" band instead.
+- **reset-my-goals.mjs**: service-role script to reset a user's goals to defaults for repeat testing (`node reset-my-goals.mjs [email]`, defaults to ankuraa.93@gmail.com).
+- ⚠️ Requires running `migrations/add-birth-date.sql` in Supabase before DOB will save.
+
+### End of session (2026-06-08 evening) — personalized goals code-complete, NOT deployed
+Pausing for the night. User wants to test a few flows before shipping — DO NOT push to prod/Vercel until they confirm.
+
+This session added, on top of the earlier personalized-goals work:
+- "Tell us about you" form → single grouped BASICS card (rows: sex, DOB[day/month/year], height[ft+in|cm toggle next to label], weight, weight goal, target weight loss/gain stepper @0.5 kg/mo); `birth_date` column (`migrations/add-birth-date.sql`); Proceed disabled until a field changes (`dirty`); weekly-activity textarea (mic bottom-left, example as placeholder); errors via Toast (not inline).
+- Review screen "Your personalized goals": EditFood-style editable calorie bar + ±100/200 pills (free-edit, floor 800), Macros card, and a live **Daily breakdown** card (maintenance = resting+activity stacked bars; target bar w/ deficit/surplus highlight; "X kg/mo lost/gained" — all recompute as calories change). Target calories round to nearest 100. Titles inside cards; no thousand separators.
+- Settings: **ABOUT YOU** card (personalized only; edit pencil → form prefilled) + **Daily Goals** edit pencil → review screen rebuilt from saved profile without Gemini (`estimateFromProfile`, `?mode=goals`). Default users get the orange "Personalise now" band only.
+- `reset-my-goals.mjs` service-role script for repeat testing.
+- **Design System Rules codified in CLAUDE.md** (after repeated drift). 
+
+State: both migrations applied to live Supabase (additive — old deployed frontend unaffected); local prod server on :3002; `next build` clean.
+
+Open / next: (1) user testing of all flows; (2) deploy to Vercel once confirmed; (3) deferred — safety floors (next), goal-aware color coding, adaptive TDEE (needs weight log), dynamic daily goals (uses stored `activity_workouts`).

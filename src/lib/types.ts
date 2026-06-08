@@ -1,3 +1,5 @@
+import type { Sex, GoalType, WorkoutEntry } from './goals';
+
 export interface FoodLibraryItem {
   id: string;
   name: string;
@@ -54,9 +56,25 @@ export interface Profile {
   daily_carbs_goal: number;
   daily_fat_goal: number;
   daily_fibre_goal: number;
+  // Goal-personalization inputs. Optional so existing Profile literals (demo,
+  // mock, defaults) keep type-checking; real DB rows always include them.
+  sex?: Sex | null;
+  age?: number | null;
+  birth_date?: string | null;
+  height_cm?: number | null;
+  weight_kg?: number | null;
+  activity_description?: string | null;
+  activity_factor?: number | null;
+  does_resistance_training?: boolean | null;
+  activity_workouts?: WorkoutEntry[] | null;
+  goal_type?: GoalType | null;
+  goal_pace_kg_per_month?: number | null;
+  goals_mode?: GoalsMode;
   created_at: string;
   updated_at: string;
 }
+
+export type GoalsMode = 'default' | 'personalized' | 'manual';
 
 export interface DailyTotals {
   calories: number;

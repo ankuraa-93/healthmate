@@ -94,8 +94,12 @@ export default function AuthPage() {
         setLoading(false);
         return;
       }
+      // Soft onboarding: flag this brand-new account so they're routed to goal
+      // personalization once. Survives the email-confirm path (where there's no
+      // session yet) — the dashboard picks the flag up after first sign-in.
+      if (typeof window !== 'undefined') localStorage.setItem('hm_onboard_pending', '1');
       if (data.session) {
-        router.push('/');
+        router.push('/onboarding');
         router.refresh();
         return;
       }

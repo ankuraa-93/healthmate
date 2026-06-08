@@ -135,6 +135,43 @@ Enable Row Level Security (RLS) on food_log and profiles from day 1.
 - **Quantities**: Always display in grams (g) for solid foods and millilitres (ml) for drinks/liquids. The LLM parser should translate natural language ("2 eggs", "a cup of coffee") into specific g/ml. This is the canonical unit system for logging, display, and editing.
 - Color palette: Apple Health-inspired — white bg, #34C759 accent green, #F2F2F7 secondary bg
 
+## Design System Rules
+
+ALWAYS follow these. They override any default styling instinct. Before building
+or changing any UI, first open the closest existing component and match it —
+do not invent new styling when a pattern already exists.
+
+### Reuse-first (the meta-rule)
+- Errors/feedback → use the `Toast` component (`src/components/Toast.tsx`), never inline text.
+- Editing a value (number + adjust) → match `EditFoodSheet`: uppercase section label,
+  a wide value bar (`bg-bg-secondary rounded-xl px-4 py-3`, right-aligned value + unit),
+  and adjustment pills below.
+- Grouped settings/rows → match the Settings "Daily Goals" card.
+- Suggestion/nudge widgets → match `SuggestedFoods`.
+- When unsure, grep for an existing component that solves the same problem and copy it.
+
+### Text & labels
+- **CTA / button labels are sentence case**: only the first word capitalised; later
+  words lowercase unless a proper noun or acronym. e.g. "Personalise now", "Log food".
+- **No thousand separators on calorie/goal numbers**: show `1352`, not `1,352`.
+
+### Components & layout
+- **A card's title goes INSIDE the card** as its first child
+  (`text-xs font-medium text-text-secondary uppercase tracking-wide pt-3 pb-2`),
+  never floating above the card container.
+- **Inline text links use a dashed/perforated underline**:
+  `underline decoration-dashed decoration-<color>/40 underline-offset-[3px]`
+  (match the decoration colour to a muted version of the text colour).
+- **Action buttons inside a textbox/textarea go bottom-left** (mic, send, etc.),
+  like the Log Food composer — `absolute bottom-3 left-3`, textarea gets `pb-14`.
+- **Page heading alignment**: a screen's heading sits on the same top line across
+  pages; when a back button is present it sits *above* the heading (pulled into the
+  top padding), not pushing the heading down.
+
+### Units (canonical)
+- Solids in grams (g), liquids in millilitres (ml); biometrics metric (kg/cm).
+  Never colloquial units.
+
 ## Dev Workflow
 - After making code changes, always rebuild and restart the local server (`next build && next start -p 3002`) before telling the user it's ready to test. Do not leave a stale server running.
 
