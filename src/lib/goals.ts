@@ -53,6 +53,17 @@ export interface Estimate {
 
 export const CALORIE_GOAL_FLOOR = 800; // floor for the editable calorie goal
 
+export function ageFromDob(y: number, m: number, d: number): number | null {
+  if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d)) return null;
+  if (y < 1900 || m < 1 || m > 12 || d < 1 || d > 31) return null;
+  const dt = new Date(y, m - 1, d);
+  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
+  const now = new Date();
+  let age = now.getFullYear() - y;
+  if (now.getMonth() < m - 1 || (now.getMonth() === m - 1 && now.getDate() < d)) age--;
+  return age;
+}
+
 
 /** Mifflin–St Jeor basal metabolic rate (kcal/day). */
 export function mifflinStJeorBMR({ sex, age, height_cm, weight_kg }: {
@@ -78,11 +89,12 @@ export function macrosForCalories({ calories, weight_kg, does_resistance_trainin
   const fat = (calories * FAT_PCT_OF_CALORIES) / 9;
   const carbs = Math.max(0, (calories - protein * 4 - fat * 9) / 4);
   const fibre = (calories / 1000) * FIBRE_G_PER_1000_KCAL;
+  const round5 = (n: number) => Math.round(n / 5) * 5;
   return {
-    protein: Math.round(protein),
-    carbs: Math.round(carbs),
-    fat: Math.round(fat),
-    fibre: Math.round(fibre),
+    protein: round5(protein),
+    carbs: round5(carbs),
+    fat: round5(fat),
+    fibre: round5(fibre),
   };
 }
 
@@ -107,5 +119,34 @@ export function computeGoals(input: GoalInputs): ComputedGoals {
       weight_kg: input.weight_kg,
       does_resistance_training: input.does_resistance_training,
     }),
+  };
+}
+
+/** Rebuild an Estimate from a saved profile without calling Gemini. */
+export function estimateFromProfile(profile: {
+  sex?: string | null; birth_date?: string | null; height_cm?: number | null;
+  weight_kg?: number | null; activity_factor?: number | null;
+  does_resistance_training?: boolean | null; goal_type?: string | null;
+  goal_pace_kg_per_month?: number | null; activity_workouts?: WorkoutEntry[] | null;
+} | null): Estimate | null {
+  if (!profile) return null;
+  const { sex, birth_date, height_cm, weight_kg, activity_factor, does_resistance_training, goal_type, goal_pace_kg_per_month } = profile;
+  if (!sex || !birth_date || height_cm == null || weight_kg == null || activity_factor == null) return null;
+  if (sex !== 'male' && sex !== 'female') return null;
+  const [y, mo, d] = birth_date.split('-').map(Number);
+  const age = ageFromDob(y, mo, d);
+  if (age == null) return null;
+  const resistance = !!does_resistance_training;
+  const goals = computeGoals({
+    sex, age, height_cm, weight_kg, activity_factor,
+    does_resistance_training: resistance,
+    goal_type: (goal_type as GoalType) ?? 'maintain',
+    goal_pace_kg_per_month: goal_type === 'maintain' ? 0 : (goal_pace_kg_per_month ?? 0),
+  });
+  const bmr = mifflinStJeorBMR({ sex, age, height_cm, weight_kg });
+  return {
+    goals, rationale: '', activity_factor, does_resistance_training: resistance,
+    workouts: profile.activity_workouts ?? [],
+    bmr, tdee: bmr * activity_factor,
   };
 }

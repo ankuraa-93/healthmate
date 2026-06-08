@@ -2,14 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { User, UserRound, Target, LogOut, ChevronRight, Pencil } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { User, UserRound, Target, LogOut, ChevronRight } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
 import DefaultGoalsSuggestion from '@/components/DefaultGoalsSuggestion';
+import PersonalizedGoalsSheet from '@/components/PersonalizedGoalsSheet';
 import { useAuth } from '@/components/AuthProvider';
 import { createClient } from '@/lib/supabase';
-import { fetchProfile } from '@/lib/supabase-data';
+import { fetchProfile, updateProfile } from '@/lib/supabase-data';
 import { Profile } from '@/lib/types';
+import { estimateFromProfile, macrosForCalories, CALORIE_GOAL_FLOOR, type Estimate } from '@/lib/goals';
 
 interface GoalRowProps {
   label: string;
@@ -21,8 +23,8 @@ interface GoalRowProps {
 function GoalRow({ label, value, unit, noBorder }: GoalRowProps) {
   return (
     <div className={`flex justify-between items-center py-3 ${noBorder ? '' : 'border-b border-bg-tertiary/50 last:border-b-0'}`}>
-      <span className="text-[15px]">{label}</span>
-      <span className="text-[15px] text-text-secondary">{value}{unit}</span>
+      <span className="text-[14px]">{label}</span>
+      <span className="text-[14px] text-text-secondary">{value}{unit}</span>
     </div>
   );
 }
@@ -30,8 +32,8 @@ function GoalRow({ label, value, unit, noBorder }: GoalRowProps) {
 function AboutRow({ label, value, noBorder }: { label: string; value: string; noBorder?: boolean }) {
   return (
     <div className={`flex justify-between items-center py-3 ${noBorder ? '' : 'border-b border-bg-tertiary/50'}`}>
-      <span className="text-[15px]">{label}</span>
-      <span className="text-[15px] text-text-secondary">{value}</span>
+      <span className="text-[14px]">{label}</span>
+      <span className="text-[14px] text-text-secondary">{value}</span>
     </div>
   );
 }
@@ -61,6 +63,9 @@ function activityLevelLabel(factor?: number | null) {
 export default function SettingsPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [signingOut, setSigningOut] = useState(false);
+  const [goalsEstimate, setGoalsEstimate] = useState<Estimate | null>(null);
+  const [calorieGoal, setCalorieGoal] = useState<number | ''>('');
+  const [savingGoals, setSavingGoals] = useState(false);
   const { user } = useAuth();
   const router = useRouter();
 
@@ -68,6 +73,27 @@ export default function SettingsPage() {
     if (!user) return;
     fetchProfile(user.id).then(p => { if (p) setProfile(p); });
   }, [user]);
+
+  const openGoalsSheet = () => {
+    if (!profile) return;
+    const est = estimateFromProfile(profile);
+    if (!est) return;
+    setGoalsEstimate(est);
+    setCalorieGoal(profile.daily_calorie_goal);
+  };
+
+  const handleSaveGoals = async () => {
+    if (!user || !profile || !goalsEstimate) return;
+    setSavingGoals(true);
+    const cal = Math.max(CALORIE_GOAL_FLOOR, calorieGoal === '' ? goalsEstimate.goals.calories : calorieGoal);
+    const m = macrosForCalories({ calories: cal, weight_kg: profile.weight_kg ?? 70, does_resistance_training: goalsEstimate.does_resistance_training });
+    const updated = await updateProfile(user.id, {
+      daily_calorie_goal: cal, daily_protein_goal: m.protein, daily_carbs_goal: m.carbs,
+      daily_fat_goal: m.fat, daily_fibre_goal: m.fibre,
+    });
+    setSavingGoals(false);
+    if (updated) { setProfile(updated); setGoalsEstimate(null); }
+  };
 
   const handleSignOut = async () => {
     setSigningOut(true);
@@ -101,15 +127,15 @@ export default function SettingsPage() {
             Profile
           </div>
           <div className="flex justify-between items-center py-3 border-b border-bg-tertiary/50">
-            <span className="text-[15px]">Display Name</span>
+            <span className="text-[14px]">Display Name</span>
             <div className="flex items-center gap-1">
-              <span className="text-[15px] text-text-secondary">{profile?.display_name || 'Not set'}</span>
+              <span className="text-[14px] text-text-secondary">{profile?.display_name || 'Not set'}</span>
               <ChevronRight size={16} className="text-text-tertiary" />
             </div>
           </div>
           <div className="flex justify-between items-center py-3">
-            <span className="text-[15px]">Email</span>
-            <span className="text-[15px] text-text-secondary">{user?.email ?? '—'}</span>
+            <span className="text-[14px]">Email</span>
+            <span className="text-[14px] text-text-secondary">{user?.email ?? '—'}</span>
           </div>
         </motion.div>
 
@@ -131,21 +157,22 @@ export default function SettingsPage() {
                 className="bg-transparent border-none cursor-pointer p-0 flex items-center"
                 aria-label="Edit about you"
               >
-                <Pencil size={14} className="text-text-secondary" />
+                <ChevronRight size={16} className="text-text-tertiary" />
               </button>
             </div>
             <AboutRow label="Sex" value={cap(profile.sex)} />
             <AboutRow label="Date of birth" value={formatDob(profile.birth_date)} />
             <AboutRow label="Height" value={profile.height_cm != null ? `${Math.round(profile.height_cm)} cm` : '—'} />
             <AboutRow label="Weight" value={profile.weight_kg != null ? `${profile.weight_kg} kg` : '—'} />
-            <AboutRow label="Weight goal" value={cap(profile.goal_type)} />
+            <AboutRow label="Weekly activity" value={activityLevelLabel(profile.activity_factor)} />
+            <AboutRow label="Weight goal" value={cap(profile.goal_type)} noBorder={!profile.goal_type || profile.goal_type === 'maintain'} />
             {profile.goal_type && profile.goal_type !== 'maintain' && (
               <AboutRow
                 label={`Target ${profile.goal_type === 'lose' ? 'loss' : 'gain'}`}
                 value={`${profile.goal_pace_kg_per_month} kg/mo`}
+                noBorder
               />
             )}
-            <AboutRow label="Weekly activity" value={activityLevelLabel(profile.activity_factor)} noBorder />
           </motion.div>
         )}
 
@@ -164,11 +191,11 @@ export default function SettingsPage() {
               </span>
               {profile.goals_mode === 'personalized' && (
                 <button
-                  onClick={() => router.push('/onboarding?from=settings&mode=goals')}
+                  onClick={openGoalsSheet}
                   className="bg-transparent border-none cursor-pointer p-0 flex items-center"
                   aria-label="Edit daily goals"
                 >
-                  <Pencil size={14} className="text-text-secondary" />
+                  <ChevronRight size={16} className="text-text-tertiary" />
                 </button>
               )}
             </div>
@@ -199,7 +226,7 @@ export default function SettingsPage() {
           <button
             onClick={handleSignOut}
             disabled={signingOut}
-            className="w-full flex items-center justify-center gap-2 py-3.5 text-destructive text-[15px] font-medium bg-transparent border-none cursor-pointer disabled:opacity-60"
+            className="w-full flex items-center justify-center gap-2 py-3.5 text-destructive text-[14px] font-medium bg-transparent border-none cursor-pointer disabled:opacity-60"
           >
             <LogOut size={16} />
             {signingOut ? 'Signing out...' : 'Sign Out'}
@@ -208,6 +235,22 @@ export default function SettingsPage() {
       </div>
 
       <BottomNav />
+
+      <AnimatePresence>
+        {goalsEstimate && profile && (
+          <PersonalizedGoalsSheet
+            estimate={goalsEstimate}
+            weightKg={profile.weight_kg ?? 70}
+            calorieGoal={calorieGoal}
+            setCalorieGoal={setCalorieGoal}
+            saving={savingGoals}
+            saveLabel="Save goals"
+            onClose={() => setGoalsEstimate(null)}
+            onEditDetails={() => { setGoalsEstimate(null); router.push('/onboarding?from=settings&mode=personalize'); }}
+            onSave={handleSaveGoals}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

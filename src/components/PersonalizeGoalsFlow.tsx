@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Mic, Loader2, TrendingDown, TrendingUp, Minus, Plus } from 'lucide-react';
 import { Profile } from '@/lib/types';
-import { computeGoals, macrosForCalories, mifflinStJeorBMR, CALORIE_GOAL_FLOOR, type GoalType, type Sex, type Estimate } from '@/lib/goals';
+import { computeGoals, macrosForCalories, mifflinStJeorBMR, CALORIE_GOAL_FLOOR, ageFromDob, estimateFromProfile, type GoalType, type Sex, type Estimate } from '@/lib/goals';
 import { updateProfile } from '@/lib/supabase-data';
 import { useVoiceInput } from '@/lib/useVoiceInput';
 import PersonalizedGoalsSheet from '@/components/PersonalizedGoalsSheet';
@@ -25,51 +25,9 @@ const PACE_STEP = 0.5;  // target weight change adjusts in 0.5 kg/month steps
 const PACE_MIN = 0.5;
 const PACE_MAX = 4;
 
-const HEADING = 'text-xs font-medium text-text-secondary uppercase tracking-wide mb-2 block';
-
 const CM_PER_INCH = 2.54;
 const CM_PER_FOOT = 30.48;
 
-/** Whole-years age from a day/month/year, or null if the date is invalid. */
-function ageFromDob(y: number, m: number, d: number): number | null {
-  if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d)) return null;
-  if (y < 1900 || m < 1 || m > 12 || d < 1 || d > 31) return null;
-  const dt = new Date(y, m - 1, d);
-  // reject rollovers like 30 Feb (JS would silently advance the month)
-  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
-  const now = new Date();
-  let age = now.getFullYear() - y;
-  if (now.getMonth() < m - 1 || (now.getMonth() === m - 1 && now.getDate() < d)) age--;
-  return age;
-}
-
-// Rebuild the review-screen estimate from a saved profile (activity factor etc.
-// are already stored), so the Daily Goals edit icon can open it without Gemini.
-function estimateFromProfile(profile: Profile | null): Estimate | null {
-  if (!profile) return null;
-  const { sex, birth_date, height_cm, weight_kg, activity_factor, does_resistance_training, goal_type, goal_pace_kg_per_month } = profile;
-  if (!sex || !birth_date || height_cm == null || weight_kg == null || activity_factor == null) return null;
-  const [y, mo, d] = birth_date.split('-').map(Number);
-  const age = ageFromDob(y, mo, d);
-  if (age == null) return null;
-  const resistance = !!does_resistance_training;
-  const goals = computeGoals({
-    sex, age, height_cm, weight_kg, activity_factor,
-    does_resistance_training: resistance,
-    goal_type: goal_type ?? 'maintain',
-    goal_pace_kg_per_month: goal_type === 'maintain' ? 0 : (goal_pace_kg_per_month ?? 0),
-  });
-  const bmr = mifflinStJeorBMR({ sex, age, height_cm, weight_kg });
-  return {
-    goals,
-    rationale: '',
-    activity_factor,
-    does_resistance_training: resistance,
-    workouts: profile.activity_workouts ?? [],
-    bmr,
-    tdee: bmr * activity_factor,
-  };
-}
 
 export default function PersonalizeGoalsFlow({ userId, profile, onSaved, onBack, saveLabel = 'Save goals', onToast, initialView = 'form' }: Props) {
   const [sex, setSex] = useState<Sex | null>(profile?.sex ?? null);
@@ -91,6 +49,22 @@ export default function PersonalizeGoalsFlow({ userId, profile, onSaved, onBack,
   const [goalType, setGoalType] = useState<GoalType>(profile?.goal_type ?? 'maintain');
   const [pace, setPace] = useState<number>(profile?.goal_pace_kg_per_month ?? 2);
   const [activity, setActivity] = useState(profile?.activity_description ?? '');
+
+  const resetForm = () => {
+    setSex(profile?.sex ?? null);
+    const d = profile?.birth_date ? profile.birth_date.split('-') : null;
+    setBirthDay(d ? String(Number(d[2])) : '');
+    setBirthMonth(d ? String(Number(d[1])) : '');
+    setBirthYear(d ? d[0] : '');
+    const ii = profile?.height_cm != null ? profile.height_cm / CM_PER_INCH : null;
+    setFeet(ii != null ? String(Math.floor(ii / 12)) : '');
+    setInches(ii != null ? String(Math.round(ii % 12)) : '');
+    setHeightCm(profile?.height_cm != null ? String(Math.round(profile.height_cm)) : '');
+    setWeight(profile?.weight_kg != null ? String(profile.weight_kg) : '');
+    setGoalType(profile?.goal_type ?? 'maintain');
+    setPace(profile?.goal_pace_kg_per_month ?? 2);
+    setActivity(profile?.activity_description ?? '');
+  };
 
   const [estimating, setEstimating] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -178,6 +152,7 @@ export default function PersonalizeGoalsFlow({ userId, profile, onSaved, onBack,
       });
     } catch (e) {
       onToast?.(e instanceof Error ? e.message : 'Something went wrong');
+      resetForm();
     } finally {
       setEstimating(false);
     }
@@ -225,14 +200,14 @@ export default function PersonalizeGoalsFlow({ userId, profile, onSaved, onBack,
         <ChevronLeft size={18} /> Back
       </button>
 
-      <h2 className="text-[20px] font-semibold mb-5">Tell us about you</h2>
+      <h2 className="text-[22px] font-medium mb-5">About you</h2>
 
-      {/* Basics + weight goal — one grouped card matching the Settings "Daily Goals" card */}
-      <div className="bg-bg-secondary rounded-2xl px-4 mb-6">
+      {/* Card 1: Basics */}
+      <div className="bg-bg-secondary rounded-2xl px-4 mb-3">
         <div className="text-xs font-medium text-text-secondary uppercase tracking-wide pt-3 pb-1">Basics</div>
         {/* Sex */}
         <div className="flex items-center justify-between py-2.5 border-b border-bg-tertiary/60">
-          <span className="text-[15px]">Sex</span>
+          <span className="text-[14px]">Sex</span>
           <div className="flex gap-1.5">
             {(['male', 'female'] as Sex[]).map((s) => (
               <button
@@ -250,18 +225,18 @@ export default function PersonalizeGoalsFlow({ userId, profile, onSaved, onBack,
 
         {/* Date of birth */}
         <div className="flex items-center justify-between py-2.5 border-b border-bg-tertiary/60">
-          <span className="text-[15px]">Date of birth</span>
+          <span className="text-[14px]">Date of birth</span>
           <div className="flex gap-1.5">
-            <MiniNum value={birthDay} onChange={setBirthDay} placeholder="DD" w="w-10" />
-            <MiniNum value={birthMonth} onChange={setBirthMonth} placeholder="MM" w="w-10" />
-            <MiniNum value={birthYear} onChange={setBirthYear} placeholder="YYYY" w="w-14" />
+            <MiniNum value={birthDay} onChange={setBirthDay} placeholder="DD" w="w-12" />
+            <MiniNum value={birthMonth} onChange={setBirthMonth} placeholder="MM" w="w-12" />
+            <MiniNum value={birthYear} onChange={setBirthYear} placeholder="YYYY" w="w-16" />
           </div>
         </div>
 
         {/* Height — unit toggle sits next to the label; inputs on the right */}
         <div className="flex items-center justify-between py-2.5 border-b border-bg-tertiary/60 gap-2">
           <div className="flex items-center gap-2 flex-shrink-0">
-            <span className="text-[15px]">Height</span>
+            <span className="text-[14px]">Height</span>
             <div className="flex bg-bg-primary rounded-lg p-0.5">
               {(['ft', 'cm'] as const).map((u) => (
                 <button
@@ -279,24 +254,55 @@ export default function PersonalizeGoalsFlow({ userId, profile, onSaved, onBack,
           <div className="flex items-center gap-1.5">
             {heightUnit === 'ft' ? (
               <>
-                <MiniNum value={feet} onChange={setFeet} placeholder="5" unit="ft" w="w-12" />
-                <MiniNum value={inches} onChange={setInches} placeholder="7" unit="in" w="w-12" />
+                <MiniNum value={feet} onChange={setFeet} placeholder="5" unit="ft" w="w-14" />
+                <MiniNum value={inches} onChange={setInches} placeholder="7" unit="in" w="w-14" />
               </>
             ) : (
-              <MiniNum value={heightCm} onChange={setHeightCm} placeholder="170" unit="cm" w="w-16" />
+              <MiniNum value={heightCm} onChange={setHeightCm} placeholder="170" unit="cm" w="w-20" />
             )}
           </div>
         </div>
 
         {/* Weight */}
-        <div className="flex items-center justify-between py-2.5 border-b border-bg-tertiary/60">
-          <span className="text-[15px]">Weight</span>
-          <MiniNum value={weight} onChange={setWeight} placeholder="65" unit="kg" w="w-16" />
+        <div className="flex items-center justify-between py-2.5">
+          <span className="text-[14px]">Weight</span>
+          <MiniNum value={weight} onChange={setWeight} placeholder="65" unit="kg" w="w-20" />
         </div>
+      </div>
 
+      {/* Weekly activity — standalone between Basics and Goal */}
+      <div className="mb-3 mt-1">
+        <div className="text-xs font-medium text-text-secondary uppercase tracking-wide pb-1.5 px-1">Weekly activity</div>
+        <div className="relative">
+          <textarea
+            value={voice.recording ? '' : activity}
+            onChange={(e) => setActivity(e.target.value)}
+            placeholder={voice.recording ? 'Listening…' : 'e.g. 4 hours gym weekly, 8000 steps daily'}
+            rows={2}
+            disabled={voice.recording}
+            className="w-full bg-bg-secondary rounded-xl p-3 pb-12 text-base leading-relaxed resize-none border-none outline-none focus:ring-2 focus:ring-accent/25 transition-shadow placeholder:text-text-tertiary"
+          />
+          {voice.supported && (
+            <button
+              onClick={voice.toggle}
+              disabled={voice.transcribing}
+              className={`absolute bottom-3 left-3 w-9 h-9 rounded-full flex items-center justify-center border-none cursor-pointer transition-colors ${
+                voice.recording ? 'bg-destructive text-white' : 'bg-bg-tertiary text-text-secondary'
+              }`}
+              aria-label={voice.recording ? 'Stop recording' : 'Record activity'}
+            >
+              {voice.transcribing ? <Loader2 size={16} className="animate-spin" /> : <Mic size={16} />}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Card 3: Goal */}
+      <div className="bg-bg-secondary rounded-2xl px-4 mb-6">
+        <div className="text-xs font-medium text-text-secondary uppercase tracking-wide pt-3 pb-1">Goal</div>
         {/* Weight goal */}
         <div className={`flex items-center justify-between gap-2 py-2.5 ${goalType !== 'maintain' ? 'border-b border-bg-tertiary/60' : ''}`}>
-          <span className="text-[15px] flex-shrink-0">Weight goal</span>
+          <span className="text-[14px] flex-shrink-0">Weight goal</span>
           <div className="flex gap-1">
             {([
               { key: 'lose', label: 'Lose', Icon: TrendingDown },
@@ -327,7 +333,7 @@ export default function PersonalizeGoalsFlow({ userId, profile, onSaved, onBack,
               className="overflow-hidden"
             >
               <div className="flex items-center justify-between gap-2 py-2.5">
-                <span className="text-[15px] flex-shrink-0">Target weight {goalType === 'lose' ? 'loss' : 'gain'}</span>
+                <span className="text-[14px] flex-shrink-0">Target {goalType === 'lose' ? 'loss' : 'gain'}</span>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setPace((p) => Math.max(PACE_MIN, +(p - PACE_STEP).toFixed(1)))}
@@ -338,7 +344,7 @@ export default function PersonalizeGoalsFlow({ userId, profile, onSaved, onBack,
                     <Minus size={15} />
                   </button>
                   <div className="h-8 px-3 bg-bg-primary rounded-lg flex items-center">
-                    <span className="text-[15px] font-semibold tabular-nums">{pace}</span>
+                    <span className="text-[14px] font-semibold tabular-nums">{pace}</span>
                     <span className="text-[12px] text-text-secondary ml-1">kg/mo</span>
                   </div>
                   <button
@@ -351,39 +357,14 @@ export default function PersonalizeGoalsFlow({ userId, profile, onSaved, onBack,
                   </button>
                 </div>
               </div>
-              <p className="text-[12px] text-text-tertiary pb-3 -mt-0.5">
+              <p className="text-[12px] text-text-tertiary py-2 -mt-0.5">
                 {weightN >= 30
-                  ? `Your weight goal is ${Math.round(goalType === 'lose' ? weightN - pace * 6 : weightN + pace * 6)} kg in 6 months from now`
-                  : `That's ${pace * 6} kg ${goalType === 'lose' ? 'lost' : 'gained'} in 6 months from now`}
+                  ? `At this rate, you'll be ${Math.round(goalType === 'lose' ? weightN - pace * 3 : weightN + pace * 3)} kg in 3 months`
+                  : `That's ${pace * 3} kg ${goalType === 'lose' ? 'lost' : 'gained'} in 3 months`}
               </p>
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
-
-      {/* Activity */}
-      <label className={HEADING}>Weekly activity</label>
-      <div className="relative mb-6">
-        <textarea
-          value={voice.recording ? '' : activity}
-          onChange={(e) => setActivity(e.target.value)}
-          placeholder={voice.recording ? 'Listening…' : 'Think of a typical week. Example: 4 hours gym weekly, 8000 steps daily'}
-          rows={3}
-          disabled={voice.recording}
-          className="w-full bg-bg-secondary rounded-xl p-3.5 pb-14 text-[15px] resize-none border-none outline-none focus:ring-2 focus:ring-accent/25 transition-shadow placeholder:text-text-tertiary"
-        />
-        {voice.supported && (
-          <button
-            onClick={voice.toggle}
-            disabled={voice.transcribing}
-            className={`absolute bottom-3 left-3 w-9 h-9 rounded-full flex items-center justify-center border-none cursor-pointer transition-colors ${
-              voice.recording ? 'bg-destructive text-white' : 'bg-bg-tertiary text-text-secondary'
-            }`}
-            aria-label={voice.recording ? 'Stop recording' : 'Record activity'}
-          >
-            {voice.transcribing ? <Loader2 size={16} className="animate-spin" /> : <Mic size={16} />}
-          </button>
-        )}
       </div>
 
       <button
@@ -391,7 +372,7 @@ export default function PersonalizeGoalsFlow({ userId, profile, onSaved, onBack,
         disabled={!dirty || estimating || voice.recording}
         className="w-full bg-accent text-white rounded-xl h-[50px] text-[17px] font-medium border-none cursor-pointer flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-default"
       >
-        {estimating ? <><Loader2 size={18} className="animate-spin" /> Calculating…</> : 'Proceed'}
+        {estimating ? <><Loader2 size={18} className="animate-spin" /> Calculating…</> : 'Calculate daily goals'}
       </button>
     </motion.div>
 
@@ -419,14 +400,15 @@ function MiniNum({ value, onChange, placeholder, unit, w = 'w-14' }: {
   value: string; onChange: (v: string) => void; placeholder: string; unit?: string; w?: string;
 }) {
   return (
-    <div className={`flex items-center justify-center bg-bg-primary rounded-lg h-9 px-1.5 ${w} focus-within:ring-2 focus-within:ring-accent/25 transition-shadow`}>
+    <div className={`flex items-center justify-center bg-bg-primary rounded-lg h-9 px-2.5 ${w} focus-within:ring-2 focus-within:ring-accent/25 transition-shadow`}>
       <input
-        type="number"
+        type="text"
         inputMode="numeric"
+        pattern="[0-9]*"
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => onChange(e.target.value.replace(/[^0-9.]/g, ''))}
         placeholder={placeholder}
-        className="w-full bg-transparent border-none outline-none text-[15px] font-medium min-w-0 text-center placeholder:text-text-tertiary placeholder:font-normal"
+        className="w-full bg-transparent border-none outline-none text-[14px] font-medium min-w-0 text-center placeholder:text-text-tertiary placeholder:font-normal"
       />
       {unit && <span className="text-[11px] text-text-tertiary ml-0.5 flex-shrink-0">{unit}</span>}
     </div>

@@ -35,12 +35,20 @@ Return ONLY JSON in this exact shape:
   ]
 }
 
-Map total weekly activity to the standard factor bands:
-- 1.2   sedentary: little or no exercise
-- 1.375 lightly active: light exercise 1–3 days/week
-- 1.55  moderately active: moderate exercise 3–5 days/week
-- 1.725 very active: hard exercise 6–7 days/week
-- 1.9   extra active: very hard exercise daily + physical job
+Map total weekly activity to the standard factor bands. IMPORTANT: most recreational exercisers are 1.375–1.55. Be conservative — err toward the lower factor when in doubt.
+
+- 1.2   sedentary: desk job, little or no exercise
+- 1.375 lightly active: light exercise 1–3 days/week, or 1–3 hours total/week
+- 1.55  moderately active: moderate exercise 3–5 days/week, or 4–8 hours total/week. THIS IS THE TYPICAL CAP for most gym-goers, recreational athletes, and people who describe a busy exercise schedule. Even 6–9 hours/week of gym + recreational sports (racquet sports, swimming, cycling) is 1.55 unless the exercise is consistently high-intensity.
+- 1.725 very active: ONLY for people who train hard 6–7 days/week AND have a physically active job or lifestyle (e.g. construction worker who also trains, competitive athlete in-season, manual laborer). Recreational gym + sports alone, even if frequent, is NOT 1.725.
+- 1.9   extra active: professional/elite athletes, military training, or very hard daily training combined with a physical job. Almost never appropriate for typical users.
+
+Calibration examples:
+- "3 hours gym weekly" → 1.375
+- "5 hours gym weekly, weekend hiking" → 1.55
+- "6 hours gym, 3 hours racquet sports weekly" → 1.55
+- "10+ hours intense training weekly + physical job" → 1.725
+- "No exercise, desk job" → 1.2
 
 Notes:
 - The user often describes activity as weekly totals (e.g. "4 hours of weightlifting a week, 2 hours table tennis"). Convert hours to sessions/minutes sensibly (e.g. 4 hours weightlifting ≈ 4 sessions × 60 min, or 3 × 80 — use judgement).
