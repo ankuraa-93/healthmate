@@ -73,6 +73,7 @@ export default function DashboardPage() {
   const [guestWelcomeDismissed, setGuestWelcomeDismissed] = useState(false);
   const [logs, setLogs] = useState<FoodLogEntry[]>([]);
   const [profile, setProfile] = useState<Profile>(defaultProfile);
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const [suggestions, setSuggestions] = useState<SuggestedFood[]>([]);
   const [dismissedMeals, setDismissedMeals] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set<string>();
@@ -157,7 +158,7 @@ export default function DashboardPage() {
           const date = formatDate(selectedDate);
           await Promise.all([
             fetchFoodLogs(user.id, date).then(setLogs),
-            fetchProfile(user.id).then(p => { if (p) setProfile(p); }),
+            fetchProfile(user.id).then(p => { if (p) setProfile(p); setProfileLoaded(true); }),
             fetchSuggestions(user.id, selectedDate).then(setSuggestions),
             fetchWeeklyCalories(user.id, getWeekDates(selectedDate)).then(setWeeklyCalories),
             fetchProcessingJobs(user.id, date).then(setProcessingJobs),
@@ -190,7 +191,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!user) return;
-    fetchProfile(user.id).then(p => { if (p) setProfile(p); });
+    fetchProfile(user.id).then(p => { if (p) setProfile(p); setProfileLoaded(true); });
   }, [user]);
 
   const [showOnboarding, setShowOnboarding] = useState(() => {
@@ -683,7 +684,7 @@ export default function DashboardPage() {
         </motion.div>
 
         {/* Personalise-goals nudge — only while on defaults (not for the demo account) */}
-        {(profile.goals_mode ?? 'default') === 'default' && user?.id !== DEMO_USER_ID && (
+        {profileLoaded && (profile.goals_mode ?? 'default') === 'default' && user?.id !== DEMO_USER_ID && (
           <DefaultGoalsSuggestion href="/onboarding?mode=personalize" className="bg-[#FFF4E6] rounded-xl px-3.5 py-3 mb-4" />
         )}
 

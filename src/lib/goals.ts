@@ -7,6 +7,9 @@
 // Protein leans toward minimum requirement rather than the 2g/kg athlete ceiling,
 // which over-shoots for the typical (often higher-body-fat) Indian user.
 export const PROTEIN_G_PER_KG = { general: 1.0, resistance: 1.5 } as const;
+// South Asian BMR correction: studies show ~5-10% lower RMR at same body weight
+// vs Western populations (higher avg body fat %, lower NEAT). We apply 7%.
+export const SOUTH_ASIAN_BMR_FACTOR = 0.93;
 export const FAT_PCT_OF_CALORIES = 0.27; // ~27% of energy from fat
 export const FIBRE_G_PER_1000_KCAL = 14; // standard dietary-fibre guideline
 export const KCAL_PER_KG_BODYWEIGHT = 7700; // energy in 1 kg of body mass
@@ -65,12 +68,13 @@ export function ageFromDob(y: number, m: number, d: number): number | null {
 }
 
 
-/** Mifflin–St Jeor basal metabolic rate (kcal/day). */
+/** Mifflin–St Jeor basal metabolic rate (kcal/day), with South Asian correction. */
 export function mifflinStJeorBMR({ sex, age, height_cm, weight_kg }: {
   sex: Sex; age: number; height_cm: number; weight_kg: number;
 }): number {
   const base = 10 * weight_kg + 6.25 * height_cm - 5 * age;
-  return sex === 'male' ? base + 5 : base - 161;
+  const raw = sex === 'male' ? base + 5 : base - 161;
+  return raw * SOUTH_ASIAN_BMR_FACTOR;
 }
 
 /**

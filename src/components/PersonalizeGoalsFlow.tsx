@@ -152,7 +152,6 @@ export default function PersonalizeGoalsFlow({ userId, profile, onSaved, onBack,
       });
     } catch (e) {
       onToast?.(e instanceof Error ? e.message : 'Something went wrong');
-      resetForm();
     } finally {
       setEstimating(false);
     }
