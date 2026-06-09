@@ -8,7 +8,7 @@ export const DEMO_EMAIL = 'demo@calorrific.app';
 export const DEMO_PASSWORD = 'explore-calorrific';
 export const DEMO_USER_ID = 'b1ecb8f5-3024-4377-bba8-1b11eb7e4e66';
 
-export const DEMO_DISPLAY_NAME = 'Alex (Demo)';
+export const DEMO_DISPLAY_NAME = 'Demo Account';
 export const DEMO_GOALS = {
   daily_calorie_goal: 2000,
   daily_protein_goal: 120,
