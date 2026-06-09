@@ -49,6 +49,9 @@ Level 3: Blood tests suggestions and report intelligence
 - ~~Vertical scroll dragging food cards sideways — swipe-to-delete now pins the card at x=0 until the gesture is confirmed horizontal, so scrolling can't slide cards open to reveal Delete~~ - Completed ✅
 - ~~Bottom sheets capped to the dynamic viewport (`dvh` instead of `vh`, matching the `min-h-dvh` app frame) so the Log Food/Edit title never scrolls above the screen with many items — only the food-card list scrolls~~ - Completed ✅
 - ~~Settings → Account redesign — profile card with avatar photo upload (camera/gallery, client-side resize to 512px, Supabase `avatars` bucket), initials fallback (green circle), inline-editable display name (saves on blur). Bottom nav shows avatar or initials circle with "Account" label. Demo reset clears avatar.~~ - Completed ✅
+- ~~Auto-growing textareas — Log Food, Replace Food, and weekly activity textboxes expand to show full entered text instead of truncating to 2 lines. Capped at 40vh.~~ - Completed ✅
+- ~~Demo account full reset — all personalization fields (sex, DOB, height, weight, activity, goals_mode) cleared on demo entry so every visitor gets an identical clean slate~~ - Completed ✅
+- ~~Lose/Gain pace minimum raised to 1 kg/mo — prevents setting 0 kg/mo which is functionally identical to Maintain~~ - Completed ✅
 
 ### Add Food
 

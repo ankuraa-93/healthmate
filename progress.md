@@ -1073,8 +1073,17 @@ Deployed to prod (merged `feat/personalized-goals` → main → Vercel auto-depl
 - `ALTER TABLE profiles ADD COLUMN avatar_url text`
 - Storage bucket `avatars` (public) + RLS policies (avatar_upload, avatar_update, avatar_read)
 
+### Misc fixes (2026-06-10)
+
+- **Lose/Gain pace minimum** — raised `PACE_MIN` from 0.5 to 1 kg/mo; clamped initial value so stored 0 gets bumped up. Prevents setting 0 kg/mo on Lose/Gain (functionally identical to Maintain).
+- **Single-letter initials** — nav bar and account page avatar now consistently show first letter only (was showing two letters for multi-word names like "Demo Account" → "DA").
+- **Demo display name** — renamed from "Alex (Demo)" to "Demo Account" to avoid parentheses in initials.
+- **Demo full reset** — reset endpoint now clears all personalization fields (sex, birth_date, height_cm, weight_kg, activity_factor, goal_type, etc.) and sets goals_mode back to 'default'. Every demo visitor gets identical clean slate.
+- **Default goals strip on demo** — removed `user?.id !== DEMO_USER_ID` exclusion so demo users see the "You're currently on default goals" nudge.
+- **Auto-growing textareas** — Log Food, Replace Food, and weekly activity textareas auto-expand as user types (capped at 40vh). Also fires on programmatic value changes (voice transcription, text restore on error) via useEffect on the value.
+
 ### >>> RESUME HERE next session
-1. **Deployed to prod** (commit `6e89e3d`, main branch, Vercel auto-deploy).
+1. **Deployed to prod** (commit `7447bca`, main branch, Vercel auto-deploy).
 2. **Onboarding sheet needs refinement** — user has changes in mind for content/design. Test with `localhost:3002?onboard`.
 3. To re-test goals from scratch: `node reset-my-goals.mjs` (resets user to default goals).
 4. Deferred queue (in order): safety floors (min-cal clamp + aggressive-deficit warning) → goal-aware color coding (CalorieRing/MacroGrid) → adaptive TDEE (needs weight log) → dynamic daily goals (uses stored activity_workouts).
