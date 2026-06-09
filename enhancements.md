@@ -48,6 +48,7 @@ Level 3: Blood tests suggestions and report intelligence
 - ~~Shareable daily log link — logged-in user taps iOS share icon in dashboard header, generates a unique URL. Viewer sees read-only dashboard (same UI: WeekStrip with owner name, calorie ring, macros, meal cards) without FAB, edit, delete, suggestions, or bottom nav. Viewer can navigate between days. Uses share_links DB table + get_shared_log RPC (SECURITY DEFINER) to bypass RLS for public access.~~ - Completed ✅
 - ~~Vertical scroll dragging food cards sideways — swipe-to-delete now pins the card at x=0 until the gesture is confirmed horizontal, so scrolling can't slide cards open to reveal Delete~~ - Completed ✅
 - ~~Bottom sheets capped to the dynamic viewport (`dvh` instead of `vh`, matching the `min-h-dvh` app frame) so the Log Food/Edit title never scrolls above the screen with many items — only the food-card list scrolls~~ - Completed ✅
+- ~~Settings → Account redesign — profile card with avatar photo upload (camera/gallery, client-side resize to 512px, Supabase `avatars` bucket), initials fallback (green circle), inline-editable display name (saves on blur). Bottom nav shows avatar or initials circle with "Account" label. Demo reset clears avatar.~~ - Completed ✅
 
 ### Add Food
 

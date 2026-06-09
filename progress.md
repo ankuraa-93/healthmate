@@ -1052,8 +1052,30 @@ Deployed to prod (merged `feat/personalized-goals` → main → Vercel auto-depl
 - Root cause: `profile` starts as `defaultProfile` (no `goals_mode`), so the banner condition was true until the real profile loaded async
 - Fix: added `profileLoaded` flag, banner only renders after `fetchProfile` resolves
 
+### Account page redesign (2026-06-10)
+
+**Settings → Account:**
+- Renamed page from "Settings" to "Account", header updated
+- Bottom nav: replaced Settings gear icon with profile avatar (initials circle or uploaded photo) + "Account" label
+- Profile card at top: large avatar (56px), inline-editable display name (saves on blur), email as secondary text
+
+**Profile photo upload:**
+- Tappable avatar with camera badge overlay — triggers file picker (camera + gallery on mobile)
+- Client-side multi-step resize (halving loop → final 512px) to avoid pixelation from single-step downscale
+- Uploads to Supabase `avatars` storage bucket (public, RLS: user writes own folder, anyone reads)
+- `avatar_url` column added to `profiles` table, wired through types/updateProfile/fetchProfile
+- Nav bar fetches profile on route change to show updated avatar
+- Demo reset clears `avatar_url` so visitors don't see stale photos
+
+**Known issue:** avatar still appears slightly pixelated at small display sizes — likely browser sub-pixel rendering with `rounded-full` clipping. Deferred for later (server-side image transforms or `next/image` optimization).
+
+**DB changes (applied to live Supabase):**
+- `ALTER TABLE profiles ADD COLUMN avatar_url text`
+- Storage bucket `avatars` (public) + RLS policies (avatar_upload, avatar_update, avatar_read)
+
 ### >>> RESUME HERE next session
-1. **Deployed to prod** (commit `1381c2f`, main branch, Vercel auto-deploy).
+1. **Deployed to prod** (commit `6e89e3d`, main branch, Vercel auto-deploy).
 2. **Onboarding sheet needs refinement** — user has changes in mind for content/design. Test with `localhost:3002?onboard`.
 3. To re-test goals from scratch: `node reset-my-goals.mjs` (resets user to default goals).
 4. Deferred queue (in order): safety floors (min-cal clamp + aggressive-deficit warning) → goal-aware color coding (CalorieRing/MacroGrid) → adaptive TDEE (needs weight log) → dynamic daily goals (uses stored activity_workouts).
+5. **Avatar pixelation** — deferred. Try `next/image` with Supabase image transforms or a dedicated image CDN.
