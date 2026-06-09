@@ -40,6 +40,7 @@ Level 3: Blood tests suggestions and report intelligence
 - ~~Consistent styling between dashboard and Log Food sheet — grouped cards, layout, colors match~~ - Completed ✅
 - ~~Log Food sheet UX polish — iOS-style "Done" text button, green tick after food names (flashes to spinner on save), chevron down/up for expand/collapse, stepped loading messages ("Identifying food..." → "Logging X foods...")~~ - Completed ✅
 - ~~Frequently logged logic — done (renamed to "Suggested", moved to dashboard with pattern-based logic: daily/weekly/biweekly). Dummy test data still in page.tsx — remove before final ship.~~ - Completed ✅
+  - ~~Suggestion matching relaxed from food+meal combo to food-name-only across lookback dates; placed under the most recent date's meal (d-1 for daily, d-7 for weekly, d-14 for biweekly)~~ - Completed ✅
 - ~~If user hides suggested tray, don't show it again for the same day + meal when page refreshes.~~ - Completed ✅
 - ~~The microphone turns on as soon as the log food bottom sheet opens. I know we did this because the initial audio being sent to whisper was truncated. But I think we can ask for permission when the bottom sheet opens but actually switch on the microphone only when user clicks on the voice button.~~ - Completed ✅
 - ~~Rename app from Calorific to Calorrific (double R — sounds like "terrific")~~ - Completed ✅

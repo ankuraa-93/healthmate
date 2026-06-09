@@ -335,25 +335,22 @@ export async function fetchSuggestions(userId: string, targetDate: Date): Promis
   }
 
   type LogRow = typeof data[number];
-  const byDateMeal = new Map<string, Map<string, LogRow>>();
+  const byDate = new Map<string, Map<string, LogRow>>();
   for (const row of data ?? []) {
-    const key = `${row.logged_date}|${row.meal_type}`;
-    if (!byDateMeal.has(key)) byDateMeal.set(key, new Map());
-    const foodMap = byDateMeal.get(key)!;
+    if (!byDate.has(row.logged_date)) byDate.set(row.logged_date, new Map());
+    const foodMap = byDate.get(row.logged_date)!;
     if (!foodMap.has(row.food_name)) foodMap.set(row.food_name, row);
   }
 
-  const getFoods = (date: string, meal: string): Map<string, LogRow> =>
-    byDateMeal.get(`${date}|${meal}`) ?? new Map();
+  const getFoods = (date: string): Map<string, LogRow> =>
+    byDate.get(date) ?? new Map();
 
-  const meals = ['breakfast', 'lunch', 'snack', 'dinner'];
   const seen = new Set<string>();
   const suggestions: SuggestedFood[] = [];
 
   const addMatch = (row: LogRow, pattern: 'daily' | 'weekly' | 'biweekly') => {
-    const key = `${row.meal_type}|${row.food_name}`;
-    if (seen.has(key)) return;
-    seen.add(key);
+    if (seen.has(row.food_name)) return;
+    seen.add(row.food_name);
     suggestions.push({
       food_name: row.food_name,
       quantity_g: row.quantity_g,
@@ -369,25 +366,23 @@ export async function fetchSuggestions(userId: string, targetDate: Date): Promis
     });
   };
 
-  for (const meal of meals) {
-    const d1 = getFoods(lookbackDates[0], meal);
-    const d2 = getFoods(lookbackDates[1], meal);
-    const w1 = getFoods(lookbackDates[2], meal);
-    const w2 = getFoods(lookbackDates[3], meal);
-    const bw2 = getFoods(lookbackDates[4], meal);
+  const d1 = getFoods(lookbackDates[0]);
+  const d2 = getFoods(lookbackDates[1]);
+  const w1 = getFoods(lookbackDates[2]);
+  const w2 = getFoods(lookbackDates[3]);
+  const bw2 = getFoods(lookbackDates[4]);
 
-    // Daily: present on both d-1 AND d-2
-    for (const [name, row] of d1) {
-      if (d2.has(name)) addMatch(row, 'daily');
-    }
-    // Weekly: present on both d-7 AND d-14
-    for (const [name, row] of w1) {
-      if (w2.has(name)) addMatch(row, 'weekly');
-    }
-    // Biweekly: present on both d-14 AND d-28
-    for (const [name, row] of w2) {
-      if (bw2.has(name)) addMatch(row, 'biweekly');
-    }
+  // Daily: food present on both d-1 AND d-2 (any meal); placed under d-1's meal
+  for (const [name, row] of d1) {
+    if (d2.has(name)) addMatch(row, 'daily');
+  }
+  // Weekly: food present on both d-7 AND d-14; placed under d-7's meal
+  for (const [name, row] of w1) {
+    if (w2.has(name)) addMatch(row, 'weekly');
+  }
+  // Biweekly: food present on both d-14 AND d-28; placed under d-14's meal
+  for (const [name, row] of w2) {
+    if (bw2.has(name)) addMatch(row, 'biweekly');
   }
 
   return suggestions;
