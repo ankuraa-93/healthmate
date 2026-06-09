@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Mic, Loader2, TrendingDown, TrendingUp, Minus, Plus } from 'lucide-react';
 import { Profile } from '@/lib/types';
@@ -22,7 +22,7 @@ interface Props {
 }
 
 const PACE_STEP = 0.5;  // target weight change adjusts in 0.5 kg/month steps
-const PACE_MIN = 0.5;
+const PACE_MIN = 1;
 const PACE_MAX = 4;
 
 const CM_PER_INCH = 2.54;
@@ -47,8 +47,13 @@ export default function PersonalizeGoalsFlow({ userId, profile, onSaved, onBack,
 
   const [weight, setWeight] = useState(profile?.weight_kg != null ? String(profile.weight_kg) : '');
   const [goalType, setGoalType] = useState<GoalType>(profile?.goal_type ?? 'maintain');
-  const [pace, setPace] = useState<number>(profile?.goal_pace_kg_per_month ?? 2);
+  const [pace, setPace] = useState<number>(Math.max(PACE_MIN, profile?.goal_pace_kg_per_month ?? 2));
   const [activity, setActivity] = useState(profile?.activity_description ?? '');
+  const activityRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const el = activityRef.current;
+    if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }
+  }, [activity]);
 
   const resetForm = () => {
     setSex(profile?.sex ?? null);
@@ -62,7 +67,7 @@ export default function PersonalizeGoalsFlow({ userId, profile, onSaved, onBack,
     setHeightCm(profile?.height_cm != null ? String(Math.round(profile.height_cm)) : '');
     setWeight(profile?.weight_kg != null ? String(profile.weight_kg) : '');
     setGoalType(profile?.goal_type ?? 'maintain');
-    setPace(profile?.goal_pace_kg_per_month ?? 2);
+    setPace(Math.max(PACE_MIN, profile?.goal_pace_kg_per_month ?? 2));
     setActivity(profile?.activity_description ?? '');
   };
 
@@ -274,10 +279,12 @@ export default function PersonalizeGoalsFlow({ userId, profile, onSaved, onBack,
         <div className="text-xs font-medium text-text-secondary uppercase tracking-wide pb-1.5 px-1">Weekly activity</div>
         <div className="relative">
           <textarea
+            ref={activityRef}
             value={voice.recording ? '' : activity}
             onChange={(e) => setActivity(e.target.value)}
             placeholder={voice.recording ? 'Listening…' : 'e.g. 4 hours gym weekly, 8000 steps daily'}
             rows={2}
+            style={{ maxHeight: '40vh', overflow: 'auto' }}
             disabled={voice.recording}
             className="w-full bg-bg-secondary rounded-xl p-3 pb-12 text-base leading-relaxed resize-none border-none outline-none focus:ring-2 focus:ring-accent/25 transition-shadow placeholder:text-text-tertiary"
           />

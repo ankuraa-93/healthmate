@@ -200,17 +200,7 @@ export default function SettingsPage() {
               />
             ) : (
               <div className={`w-14 h-14 rounded-full bg-accent flex items-center justify-center text-white text-xl font-semibold ${uploadingAvatar ? 'opacity-50' : ''}`}>
-                {(() => {
-                  const name = editingName.trim() || profile?.display_name;
-                  const email = user?.email;
-                  if (name) {
-                    const parts = name.trim().split(/\s+/);
-                    return parts.length >= 2
-                      ? (parts[0][0] + parts[1][0]).toUpperCase()
-                      : parts[0][0].toUpperCase();
-                  }
-                  return email ? email[0].toUpperCase() : '?';
-                })()}
+                {(editingName.trim() || profile?.display_name || user?.email || '?')[0].toUpperCase()}
               </div>
             )}
             <div className="absolute bottom-0 right-0 w-5 h-5 rounded-full bg-accent flex items-center justify-center shadow-sm">

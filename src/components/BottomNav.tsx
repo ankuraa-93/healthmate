@@ -7,12 +7,8 @@ import { motion } from 'framer-motion';
 import { useAuth } from '@/components/AuthProvider';
 import { fetchProfile } from '@/lib/supabase-data';
 
-function getInitials(name?: string | null, email?: string | null): string {
-  if (name) {
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-    return parts[0][0].toUpperCase();
-  }
+function getInitial(name?: string | null, email?: string | null): string {
+  if (name) return name.trim()[0].toUpperCase();
   if (email) return email[0].toUpperCase();
   return '?';
 }
@@ -36,7 +32,7 @@ export default function BottomNav() {
 
   const isHomeActive = pathname === '/';
   const isAccountActive = pathname === '/settings';
-  const initials = getInitials(displayName ?? user?.user_metadata?.display_name, user?.email);
+  const initial = getInitial(displayName ?? user?.user_metadata?.display_name, user?.email);
 
   return (
     <nav className="flex-shrink-0 pb-[max(8px,env(safe-area-inset-bottom))] bg-bg-primary flex items-start justify-around pt-1.5 z-10 shadow-[0_-2px_8px_rgba(0,0,0,0.06)]" style={{ touchAction: 'manipulation', position: 'sticky', bottom: 0 }}>
@@ -72,7 +68,7 @@ export default function BottomNav() {
               ? 'bg-accent text-white'
               : 'bg-bg-tertiary text-text-secondary'
           }`}>
-            {initials}
+            {initial}
           </div>
         )}
         <span className="text-xs font-medium">Account</span>

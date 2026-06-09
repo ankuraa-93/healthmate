@@ -110,6 +110,10 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
   const [reviewPhotos, setReviewPhotos] = useState<ReviewPhoto[]>([]);
   const [showPhotoReview, setShowPhotoReview] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }
+  }, [input]);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const micStreamRef = useRef<MediaStream | null>(null);
@@ -884,9 +888,15 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
                 ref={textareaRef}
                 className="w-full bg-transparent border-none resize-none text-base text-text-primary outline-none leading-relaxed placeholder:text-text-tertiary"
                 rows={2}
+                style={{ maxHeight: '40vh', overflow: 'auto' }}
                 placeholder={recording ? 'Listening...' : 'I just had omelette with toast'}
                 value={input}
-                onChange={e => setInput(e.target.value)}
+                onChange={e => {
+                  setInput(e.target.value);
+                  const el = e.target;
+                  el.style.height = 'auto';
+                  el.style.height = el.scrollHeight + 'px';
+                }}
                 disabled={recording}
                 onKeyDown={e => {
                   if (e.key === 'Enter' && !e.shiftKey) {

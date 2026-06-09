@@ -684,8 +684,8 @@ export default function DashboardPage() {
           />
         </motion.div>
 
-        {/* Personalise-goals nudge — only while on defaults (not for the demo account) */}
-        {profileLoaded && (profile.goals_mode ?? 'default') === 'default' && user?.id !== DEMO_USER_ID && (
+        {/* Personalise-goals nudge — only while on defaults */}
+        {profileLoaded && (profile.goals_mode ?? 'default') === 'default' && (
           <DefaultGoalsSuggestion href="/onboarding?mode=personalize" className="bg-[#FFF4E6] rounded-xl px-3.5 py-3 mb-4" />
         )}
 
