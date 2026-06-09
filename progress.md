@@ -1034,8 +1034,26 @@ Deployed to prod (merged `feat/personalized-goals` → main → Vercel auto-depl
 - `ageFromDob` and `estimateFromProfile` moved from PersonalizeGoalsFlow to `src/lib/goals.ts` (shared by settings page)
 - Unused HEADING const, router import cleaned up
 
+### Goals polish (2026-06-10)
+
+**South Asian BMR correction:**
+- Mifflin–St Jeor was overestimating maintenance calories for Indian users (higher avg body fat %, lower NEAT vs Western populations the formula was derived from)
+- Applied a 0.93× correction factor (`SOUTH_ASIAN_BMR_FACTOR`) to the BMR output — ~7% reduction, backed by published RMR studies on South Asian populations
+- Considered Katch-McArdle (lean-mass-based) but rejected — would need body fat % estimation from the same limited inputs (age/sex/height/weight), adding complexity without real accuracy gains
+- The correction propagates through the entire pipeline: BMR → TDEE → goal calories → TDEE breakdown on the review screen
+
+**Form data retention on failure:**
+- Bug: the "About you" form went blank when the activity estimation API failed
+- Root cause: `resetForm()` was called in the `catch` block of `handleCalculate`, wiping all fields back to saved profile (blank for new users)
+- Fix: removed `resetForm()` from catch — toast still shows the error, form keeps the user's input for retry
+
+**Default goals banner flicker:**
+- Bug: the yellow "You're currently on default goals" banner flashed briefly on page load for users who already had personalized goals
+- Root cause: `profile` starts as `defaultProfile` (no `goals_mode`), so the banner condition was true until the real profile loaded async
+- Fix: added `profileLoaded` flag, banner only renders after `fetchProfile` resolves
+
 ### >>> RESUME HERE next session
-1. **Deployed to prod** (commit `38fe72a`, main branch, Vercel auto-deploy).
+1. **Deployed to prod** (commit `1381c2f`, main branch, Vercel auto-deploy).
 2. **Onboarding sheet needs refinement** — user has changes in mind for content/design. Test with `localhost:3002?onboard`.
 3. To re-test goals from scratch: `node reset-my-goals.mjs` (resets user to default goals).
 4. Deferred queue (in order): safety floors (min-cal clamp + aggressive-deficit warning) → goal-aware color coding (CalorieRing/MacroGrid) → adaptive TDEE (needs weight log) → dynamic daily goals (uses stored activity_workouts).
