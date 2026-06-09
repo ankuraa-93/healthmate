@@ -3,6 +3,7 @@ import { FoodLogEntry, FoodLibraryItem, Profile } from './types';
 export const mockProfile: Profile = {
   id: 'mock-user-id',
   display_name: 'Ankur',
+  avatar_url: null,
   daily_calorie_goal: 2000,
   daily_protein_goal: 120,
   daily_carbs_goal: 250,

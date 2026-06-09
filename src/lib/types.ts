@@ -51,6 +51,7 @@ export interface ProcessingJob {
 export interface Profile {
   id: string;
   display_name: string | null;
+  avatar_url: string | null;
   daily_calorie_goal: number;
   daily_protein_goal: number;
   daily_carbs_goal: number;

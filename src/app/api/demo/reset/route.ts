@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     const profRes = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${DEMO_USER_ID}`, {
       method: 'PATCH',
       headers,
-      body: JSON.stringify({ display_name: DEMO_DISPLAY_NAME, ...DEMO_GOALS, updated_at: new Date().toISOString() }),
+      body: JSON.stringify({ display_name: DEMO_DISPLAY_NAME, avatar_url: null, ...DEMO_GOALS, updated_at: new Date().toISOString() }),
     });
     if (!profRes.ok) {
       const text = await profRes.text();

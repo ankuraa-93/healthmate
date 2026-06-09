@@ -1,15 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, UserRound, Target, LogOut, ChevronRight } from 'lucide-react';
+import { UserRound, Target, LogOut, ChevronRight, Camera } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
 import DefaultGoalsSuggestion from '@/components/DefaultGoalsSuggestion';
 import PersonalizedGoalsSheet from '@/components/PersonalizedGoalsSheet';
 import { useAuth } from '@/components/AuthProvider';
 import { createClient } from '@/lib/supabase';
-import { fetchProfile, updateProfile } from '@/lib/supabase-data';
+import { fetchProfile, updateProfile, uploadAvatar } from '@/lib/supabase-data';
 import { Profile } from '@/lib/types';
 import { estimateFromProfile, macrosForCalories, CALORIE_GOAL_FLOOR, type Estimate } from '@/lib/goals';
 
@@ -66,13 +66,78 @@ export default function SettingsPage() {
   const [goalsEstimate, setGoalsEstimate] = useState<Estimate | null>(null);
   const [calorieGoal, setCalorieGoal] = useState<number | ''>('');
   const [savingGoals, setSavingGoals] = useState(false);
+  const [editingName, setEditingName] = useState('');
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     if (!user) return;
-    fetchProfile(user.id).then(p => { if (p) setProfile(p); });
+    fetchProfile(user.id).then(p => { if (p) { setProfile(p); setEditingName(p.display_name ?? ''); } });
   }, [user]);
+
+  const saveDisplayName = async () => {
+    const trimmed = editingName.trim();
+    if (!user || !profile || trimmed === (profile.display_name ?? '')) return;
+    const updated = await updateProfile(user.id, { display_name: trimmed || null });
+    if (updated) setProfile(updated);
+  };
+
+  const resizeImage = (file: File, maxSize: number): Promise<File> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        let sw = img.width;
+        let sh = img.height;
+        const scale = Math.min(maxSize / sw, maxSize / sh, 1);
+        const tw = Math.round(sw * scale);
+        const th = Math.round(sh * scale);
+
+        // Step down by halves for quality — single large downscale looks pixelated
+        let src: HTMLCanvasElement | HTMLImageElement = img;
+        while (sw > tw * 2 || sh > th * 2) {
+          const half = document.createElement('canvas');
+          half.width = Math.round(sw / 2);
+          half.height = Math.round(sh / 2);
+          const hctx = half.getContext('2d')!;
+          hctx.imageSmoothingQuality = 'high';
+          hctx.drawImage(src, 0, 0, half.width, half.height);
+          src = half;
+          sw = half.width;
+          sh = half.height;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = tw;
+        canvas.height = th;
+        const ctx = canvas.getContext('2d')!;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(src, 0, 0, tw, th);
+        canvas.toBlob(
+          (blob) => resolve(new File([blob!], file.name, { type: 'image/jpeg' })),
+          'image/jpeg',
+          0.9,
+        );
+      };
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setUploadingAvatar(true);
+    const resized = await resizeImage(file, 512);
+    const url = await uploadAvatar(user.id, resized);
+    if (url) {
+      const updated = await updateProfile(user.id, { avatar_url: url });
+      if (updated) setProfile(updated);
+    }
+    setUploadingAvatar(false);
+    if (avatarInputRef.current) avatarInputRef.current.value = '';
+  };
 
   const openGoalsSheet = () => {
     if (!profile) return;
@@ -112,30 +177,70 @@ export default function SettingsPage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
         >
-          <span className="text-[22px] font-medium">Settings</span>
+          <span className="text-[22px] font-medium">Account</span>
         </motion.div>
 
-        {/* Profile section */}
+        {/* Profile card */}
         <motion.div
-          className="bg-bg-secondary rounded-2xl px-4 mb-4"
+          className="bg-bg-secondary rounded-2xl px-4 py-5 mb-4 flex items-center gap-4"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
         >
-          <div className="text-xs font-medium text-text-secondary uppercase tracking-wide pt-3 pb-2 flex items-center gap-1.5">
-            <User size={12} />
-            Profile
-          </div>
-          <div className="flex justify-between items-center py-3 border-b border-bg-tertiary/50">
-            <span className="text-[14px]">Display Name</span>
-            <div className="flex items-center gap-1">
-              <span className="text-[14px] text-text-secondary">{profile?.display_name || 'Not set'}</span>
-              <ChevronRight size={16} className="text-text-tertiary" />
+          <button
+            onClick={() => avatarInputRef.current?.click()}
+            className="relative w-16 h-14 flex-shrink-0 bg-transparent border-none p-0 cursor-pointer"
+            aria-label="Change profile photo"
+          >
+            {profile?.avatar_url ? (
+              <img
+                src={profile.avatar_url}
+                alt=""
+                className={`w-14 h-14 rounded-full object-cover block ${uploadingAvatar ? 'opacity-50' : ''}`}
+              />
+            ) : (
+              <div className={`w-14 h-14 rounded-full bg-accent flex items-center justify-center text-white text-xl font-semibold ${uploadingAvatar ? 'opacity-50' : ''}`}>
+                {(() => {
+                  const name = editingName.trim() || profile?.display_name;
+                  const email = user?.email;
+                  if (name) {
+                    const parts = name.trim().split(/\s+/);
+                    return parts.length >= 2
+                      ? (parts[0][0] + parts[1][0]).toUpperCase()
+                      : parts[0][0].toUpperCase();
+                  }
+                  return email ? email[0].toUpperCase() : '?';
+                })()}
+              </div>
+            )}
+            <div className="absolute bottom-0 right-0 w-5 h-5 rounded-full bg-accent flex items-center justify-center shadow-sm">
+              <Camera size={10} className="text-white" />
             </div>
-          </div>
-          <div className="flex justify-between items-center py-3">
-            <span className="text-[14px]">Email</span>
-            <span className="text-[14px] text-text-secondary">{user?.email ?? '—'}</span>
+            {uploadingAvatar && (
+              <div className="absolute inset-0 w-14 h-14 flex items-center justify-center">
+                <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+          </button>
+          <input
+            ref={avatarInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleAvatarChange}
+            className="hidden"
+          />
+          <div className="min-w-0 flex-1">
+            <input
+              ref={nameInputRef}
+              type="text"
+              value={editingName}
+              onChange={(e) => setEditingName(e.target.value)}
+              onBlur={saveDisplayName}
+              onKeyDown={(e) => { if (e.key === 'Enter') nameInputRef.current?.blur(); }}
+              placeholder="Add your name"
+              className="w-full text-[17px] font-medium bg-transparent border-none outline-none p-0 placeholder:text-text-tertiary"
+            />
+            <div className="text-[14px] text-text-secondary truncate">{user?.email ?? '—'}</div>
           </div>
         </motion.div>
 
