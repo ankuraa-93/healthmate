@@ -1082,9 +1082,72 @@ Deployed to prod (merged `feat/personalized-goals` → main → Vercel auto-depl
 - **Default goals strip on demo** — removed `user?.id !== DEMO_USER_ID` exclusion so demo users see the "You're currently on default goals" nudge.
 - **Auto-growing textareas** — Log Food, Replace Food, and weekly activity textareas auto-expand as user types (capped at 40vh). Also fires on programmatic value changes (voice transcription, text restore on error) via useEffect on the value.
 
+### Share connections feature (2026-06-12)
+
+Built a full sharing system: users can share their food log with others (by email, immediate access) or request to see someone else's log (requires approval). Either party can revoke at any time.
+
+**Database:**
+- New `share_connections` table — owner/viewer IDs + emails, type (`share`/`request`), status (`pending`/`accepted`/`declined`/`revoked`)
+- RLS policies for read/update by either party
+- 4 RPC functions: `get_viewable_connections`, `get_pending_requests`, `get_connection_log`, `get_all_my_connections`
+- Migration file: `share-connections-migration.sql` (**NOT YET APPLIED to live Supabase**)
+
+**API routes:**
+- `POST /api/share-connections` — create share or request (handles email lookup via service role, dedup, reactivation of revoked)
+- `PATCH /api/share-connections` — accept/decline/revoke
+- `POST /api/share-connections/resolve` — backfill user IDs for pending connections on login (called from dashboard mount)
+- `GET /api/share-connections/log` — fetch owner's food log via `get_connection_log` RPC (validates connection)
+- `GET /api/share-connections/search` — search users by email or display_name for the typeahead dropdown
+
+**UI components:**
+- `ShareAvatarRow` — Instagram-stories-style avatar strip between WeekStrip and CalorieRing; only renders when user has viewable connections (accepted connections where they're the viewer)
+- `ShareSheet` — bottom sheet opened by "Share" text button in dashboard header. Contains: "Share my log" card (email input with search typeahead), "Request sharing" expandable card with chevron, pending incoming requests with accept/decline, and "Copy link"/"Share link" buttons at bottom. Styled to match AddFoodSheet (drag-to-dismiss, px-6, 22px header, z-20/z-30 layering)
+- `SharedLogSheet` — full-screen view of someone else's daily log when tapping their avatar. Shows WeekStrip, CalorieRing, MacroGrid, read-only FoodCards grouped by meal with day navigation
+
+**Dashboard integration:**
+- "Share" text button (accent color) replaces old share icon in header; red badge shows pending request count
+- Avatar row appears below WeekStrip when user has viewable connections
+- ShareSheet + SharedLogSheet wired up
+
+**Settings integration:**
+- "Sharing" section lists all active connections (accepted + pending) with revoke (X) button per connection
+- Shows relationship label ("Sharing your log with X" / "Viewing X's log") + email
+
+**Pending on-signup flow:**
+- When creating a connection with an email not yet on the platform, the row stores `NULL` for the missing user ID
+- `resolveShareConnections()` called on dashboard mount backfills IDs for any rows matching the current user's email
+- Pending requests surface immediately on the target user's next login
+
+**Design decisions:**
+- Search dropdown: selecting a result populates the field only — user must tap Send to submit (no auto-fire)
+- Privacy: declining a request doesn't reveal whether the email is a real account
+- Revoke: either party can sever any connection; avatar disappears silently for the other party
+
+## Share UX Redesign — Jun 13 2026
+
+### User switcher redesign
+- Replaced horizontal avatar pill row (`ShareAvatarRow`) with centered dropdown user switcher
+- New header layout: `[Month Year]` left — `[24px Avatar + Name + Chevron]` center — `[Share button]` right
+- Share button: green text on `bg-accent/10` with `border-accent/30`, `rounded-xl` (matching meal cards)
+- Chevron opens a bottom sheet (not tooltip dropdown) for user switching
+- Bottom sheet shows "You" (with email) + connections (with name/email), checkmark on selected
+- `ShareAvatarRow` split into two exports: header bar (default) + `UserSwitcherSheet` (rendered at page top-level to layer above BottomNav)
+- Fixed stacking issue: bottom sheets must use `absolute` positioning and render at page top-level, not nested inside header
+
+### Shared log viewer improvements
+- Photo tray: clickable thumbnails → expanded photo viewer with arrow nav, swipe, dot indicators, identified foods list (read-only) — matches ShareDashboard (public link) experience
+- Food cards: `image_url` nullified for `input_source === 'image'` entries so source photos don't appear as food thumbnails; library images only
+- Meal card background: added `--meal-bg` CSS var to shared view so FoodCard bg matches meal header strip
+
 ### >>> RESUME HERE next session
-1. **Deployed to prod** (commit `7447bca`, main branch, Vercel auto-deploy).
-2. **Onboarding sheet needs refinement** — user has changes in mind for content/design. Test with `localhost:3002?onboard`.
-3. To re-test goals from scratch: `node reset-my-goals.mjs` (resets user to default goals).
-4. Deferred queue (in order): safety floors (min-cal clamp + aggressive-deficit warning) → goal-aware color coding (CalorieRing/MacroGrid) → adaptive TDEE (needs weight log) → dynamic daily goals (uses stored activity_workouts).
-5. **Avatar pixelation** — deferred. Try `next/image` with Supabase image transforms or a dedicated image CDN.
+1. **Not yet committed or deployed** — all share connection changes are local only. DB migration already applied to prod.
+2. **Remaining pending share changes** (see enhancements.md "Pending share feature changes"):
+   - Nudge user to set display name/profile pic when sharing (skip if both set)
+   - Change account icon back to icon instead of profile pic
+   - Share button fix: viewing someone else → native share/copy (currently errors "failed to create link")
+   - Different color fills per user in bottom sheet, persistent across sessions
+   - Connection order: show in order they were shared with viewer
+3. **Onboarding sheet needs refinement** — user has changes in mind for content/design. Test with `localhost:3002?onboard`.
+4. To re-test goals from scratch: `node reset-my-goals.mjs` (resets user to default goals).
+5. Deferred queue (in order): safety floors (min-cal clamp + aggressive-deficit warning) → goal-aware color coding (CalorieRing/MacroGrid) → adaptive TDEE (needs weight log) → dynamic daily goals (uses stored activity_workouts).
+6. **Avatar pixelation** — deferred. Try `next/image` with Supabase image transforms or a dedicated image CDN.

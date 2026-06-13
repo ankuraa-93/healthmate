@@ -196,12 +196,14 @@ export default function ShareDashboard({ token }: { token: string }) {
     <div className="absolute inset-0 flex flex-col">
       {/* Header */}
       <div className="flex-shrink-0 pt-[max(env(safe-area-inset-top),12px)] pb-1 bg-bg-primary z-10 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+        <div className="text-center mt-1 mb-1">
+          <span className="text-[13px] font-medium text-text-secondary">{ownerLabel}</span>
+        </div>
         <WeekStrip
           selectedDate={selectedDate}
           onSelectDate={setSelectedDate}
           weeklyCalories={mergedWeeklyCalories}
           calorieTarget={data.daily_calorie_goal}
-          ownerLabel={ownerLabel}
         />
       </div>
 

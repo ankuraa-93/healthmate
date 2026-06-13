@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UserRound, Target, LogOut, ChevronRight, Camera } from 'lucide-react';
+import { UserRound, Target, LogOut, ChevronRight, Camera, X } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
 import DefaultGoalsSuggestion from '@/components/DefaultGoalsSuggestion';
 import PersonalizedGoalsSheet from '@/components/PersonalizedGoalsSheet';
+import Toast from '@/components/Toast';
 import { useAuth } from '@/components/AuthProvider';
 import { createClient } from '@/lib/supabase';
 import { fetchProfile, updateProfile, uploadAvatar } from '@/lib/supabase-data';
@@ -68,10 +69,18 @@ export default function SettingsPage() {
   const [savingGoals, setSavingGoals] = useState(false);
   const [editingName, setEditingName] = useState('');
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [toast, setToast] = useState({ visible: false, message: '' });
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
   const router = useRouter();
+
+  const showToast = (message: string) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ visible: true, message });
+    toastTimer.current = setTimeout(() => setToast({ visible: false, message: '' }), 2500);
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -330,6 +339,8 @@ export default function SettingsPage() {
       </div>
 
       <BottomNav />
+
+      <Toast message={toast.message} visible={toast.visible} />
 
       <AnimatePresence>
         {goalsEstimate && profile && (

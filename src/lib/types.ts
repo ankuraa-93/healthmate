@@ -84,3 +84,79 @@ export interface DailyTotals {
   fat: number;
   fibre: number;
 }
+
+export interface ShareConnection {
+  id: string;
+  owner_id: string | null;
+  owner_email: string;
+  viewer_id: string | null;
+  viewer_email: string;
+  type: 'share' | 'request';
+  status: 'pending' | 'accepted' | 'declined' | 'revoked';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ViewableConnection {
+  id: string;
+  owner_id: string;
+  owner_email: string;
+  owner_display_name: string | null;
+  owner_avatar_url: string | null;
+  type: 'share' | 'request';
+  accepted_at: string;
+}
+
+export interface PendingRequest {
+  id: string;
+  viewer_id: string;
+  viewer_email: string;
+  viewer_display_name: string | null;
+  viewer_avatar_url: string | null;
+  type: 'share' | 'request';
+  created_at: string;
+}
+
+export interface ManagedConnection {
+  id: string;
+  owner_id: string | null;
+  owner_email: string;
+  owner_display_name: string | null;
+  owner_avatar_url: string | null;
+  viewer_id: string | null;
+  viewer_email: string;
+  viewer_display_name: string | null;
+  viewer_avatar_url: string | null;
+  type: 'share' | 'request';
+  status: 'pending' | 'accepted';
+  created_at: string;
+}
+
+export interface SharedLogData {
+  display_name: string | null;
+  avatar_url: string | null;
+  email: string;
+  logged_date: string;
+  daily_calorie_goal: number;
+  daily_protein_goal: number;
+  daily_carbs_goal: number;
+  daily_fat_goal: number;
+  daily_fibre_goal: number;
+  entries: SharedLogEntry[];
+  weekly_calories: Record<string, number>;
+}
+
+export interface SharedLogEntry {
+  id: string;
+  food_name: string;
+  quantity_g: number;
+  calories: number | null;
+  protein: number | null;
+  carbs: number | null;
+  fat: number | null;
+  fibre: number | null;
+  meal_type: string;
+  unit: string;
+  input_source: string | null;
+  image_url: string | null;
+}

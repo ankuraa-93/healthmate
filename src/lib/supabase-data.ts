@@ -1,5 +1,5 @@
 import { createClient } from './supabase';
-import { FoodLogEntry, Profile, FoodLibraryItem, ProcessingJob } from './types';
+import { FoodLogEntry, Profile, FoodLibraryItem, ProcessingJob, ViewableConnection, PendingRequest, ManagedConnection } from './types';
 
 const supabase = createClient();
 
@@ -307,6 +307,71 @@ export async function fetchSourceImages(userId: string, date: string): Promise<S
     map.get(url)!.foodIds.push(row.id);
   }
   return [...map.values()];
+}
+
+// --- Share Connections ---
+
+export async function fetchViewableConnections(): Promise<ViewableConnection[]> {
+  const { data, error } = await supabase.rpc('get_viewable_connections');
+  if (error) {
+    console.error('fetchViewableConnections error:', error);
+    return [];
+  }
+  const list = data ?? [];
+  list.sort((a: ViewableConnection, b: ViewableConnection) =>
+    new Date(a.accepted_at).getTime() - new Date(b.accepted_at).getTime()
+  );
+  return list;
+}
+
+export async function fetchPendingRequests(): Promise<PendingRequest[]> {
+  const { data, error } = await supabase.rpc('get_pending_requests');
+  if (error) {
+    console.error('fetchPendingRequests error:', error);
+    return [];
+  }
+  return data ?? [];
+}
+
+export async function fetchAllMyConnections(): Promise<ManagedConnection[]> {
+  const { data, error } = await supabase.rpc('get_all_my_connections');
+  if (error) {
+    console.error('fetchAllMyConnections error:', error);
+    return [];
+  }
+  return data ?? [];
+}
+
+export async function updateConnectionStatus(
+  connectionId: string,
+  action: 'accept' | 'decline' | 'revoke',
+): Promise<boolean> {
+  const res = await fetch('/api/share-connections', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ connectionId, action }),
+  });
+  return res.ok;
+}
+
+export async function createShareConnection(
+  type: 'share' | 'request',
+  targetEmail: string,
+): Promise<{ ok: boolean; error?: string; targetExists?: boolean; existing?: boolean }> {
+  const res = await fetch('/api/share-connections', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type, targetEmail }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    return { ok: false, error: data.error, existing: data.existing };
+  }
+  return { ok: true, targetExists: data.targetExists };
+}
+
+export async function resolveShareConnections(): Promise<void> {
+  await fetch('/api/share-connections/resolve', { method: 'POST' });
 }
 
 // --- Suggestions (pattern-based) ---

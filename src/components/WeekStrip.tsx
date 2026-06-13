@@ -8,7 +8,6 @@ interface WeekStripProps {
   onSelectDate: (date: Date) => void;
   weeklyCalories: Record<string, number>;
   calorieTarget: number;
-  ownerLabel?: string;
 }
 
 function getWeekDays(date: Date): Date[] {
@@ -39,7 +38,7 @@ const slideVariants = {
   exit: (d: number) => ({ x: `${(d || 1) * -100}%` }),
 };
 
-export default function WeekStrip({ selectedDate, onSelectDate, weeklyCalories, calorieTarget, ownerLabel }: WeekStripProps) {
+export default function WeekStrip({ selectedDate, onSelectDate, weeklyCalories, calorieTarget }: WeekStripProps) {
   const days = getWeekDays(selectedDate);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -53,13 +52,6 @@ export default function WeekStrip({ selectedDate, onSelectDate, weeklyCalories, 
   if (weekState.key !== weekKey) {
     setWeekState({ key: weekKey, direction: weekKey > weekState.key ? 1 : -1 });
   }
-
-  const months = days.map(d => d.toLocaleDateString('en-US', { month: 'short' }));
-  const uniqueMonths = [...new Set(months)];
-  const year = days[3].getFullYear();
-  const monthLabel = uniqueMonths.length > 1
-    ? `${uniqueMonths[0]} – ${uniqueMonths[1]} ${year}`
-    : `${uniqueMonths[0]} ${year}`;
 
   const ringSize = 36;
   const r = 14;
@@ -89,16 +81,11 @@ export default function WeekStrip({ selectedDate, onSelectDate, weeklyCalories, 
 
   return (
     <motion.div
-      className="pb-2"
+      className="pt-1 pb-1"
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
-      <div className="text-center mb-2">
-        <span className="text-[13px] font-medium text-text-secondary">
-          {ownerLabel && <>{ownerLabel} &middot; </>}{monthLabel}
-        </span>
-      </div>
       <div
         className="relative overflow-hidden px-2"
         style={{ height: 58 }}

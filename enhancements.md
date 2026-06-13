@@ -52,6 +52,8 @@ Level 3: Blood tests suggestions and report intelligence
 - ~~Auto-growing textareas — Log Food, Replace Food, and weekly activity textboxes expand to show full entered text instead of truncating to 2 lines. Capped at 40vh.~~ - Completed ✅
 - ~~Demo account full reset — all personalization fields (sex, DOB, height, weight, activity, goals_mode) cleared on demo entry so every visitor gets an identical clean slate~~ - Completed ✅
 - ~~Lose/Gain pace minimum raised to 1 kg/mo — prevents setting 0 kg/mo which is functionally identical to Maintain~~ - Completed ✅
+- ~~Share connections — two-way log sharing ("Share my log" instant, "Request sharing" needs approval). Multi-select pill input, search typeahead, "Already shared"/"Pending" badges in dropdown, connection lists in share sheet. Avatar tray on dashboard with inline log viewing (no overlay). Share button with soft green fill + iOS share icon. Pending requests at top of share sheet with red dot badge.~~ - Completed ✅
+- ~~Weekly strip date label — shows selected date ("June 12, 2026") instead of just month/year~~ - Completed ✅
 
 ### Add Food
 
@@ -96,10 +98,23 @@ Level 3: Blood tests suggestions and report intelligence
 - ~~Camera badge on photo-identified foods missing on the share viewer — RPC now returns `input_source` and `toFoodLogEntry` maps it (logger/viewer consistency)~~ - Completed ✅
 - ~~Guest demo mode — "Continue as guest" on the auth screen lets recruiters/visitors explore a populated demo account without signing up. One shared `demo@calorrific.app` account reset to a curated seed day (today-relative dates; two photo-logged meals + a few history days for calendar dots) on every entry via `/api/demo/reset` (service role, delete-then-insert). One-time guest-welcome bottom sheet (shown only on the click) nudges toward voice/image logging.~~ - Completed ✅
 - ~~Failed photo resilience — don't discard an uploaded photo when Gemini identification fails. Keep it as a retryable "failed" job whose image is recovered from storage (so retry works even after a reload/tab-switch, not just in-session). Retry from the photo viewer or an actionable "Retry" button on the failure toast; failed photos show only in the top photo tray (no longer duplicated in the meal section, no empty meal card). "No food found" is also kept as retryable instead of auto-deleted. Copy: viewer "Food identification failed / Temporary issue - try again", delete-confirm no longer offers Retry.~~ - Completed ✅
+- ~~Share connections — two-way sharing system: "Share my log" (immediate access by email) and "Request sharing" (requires approval). Avatar row on dashboard for viewing others' logs. Search typeahead for users. Manage/revoke from Settings. Pending-on-signup flow for emails not yet on platform. DB migration applied to live Supabase.~~ - Completed ✅
 - Fix quantities for egg and egg white for every instance - it takes a different value everytime (say if user says 1 boiled egg, log as 50g boiled egg)
 - Consistently boiled egg white is identified as boiled egg from image by Gemini
 
 ---
+
+## Pending share feature changes
+
+- ~~uploaded images not visible in sharing view — RPC `get_connection_log` updated to return `COALESCE(fl.source_image_url, lib.image_url)` as `image_url`~~ - Completed ✅
+- ~~image display correction when viewing other users' logs - image tray instead of food photo~~ - Completed ✅
+- ~~avatar DP still getting clipped slightly on top (ring overflow vs pill container — needs more padding or different approach)~~ - Completed ✅ (avatar tray replaced with centered dropdown switcher)
+- ~~nudge user to set display name and/or profile pic when they click on share; its not mandatory. don't show this nudge for users who already have both profile photo and display name~~ - Completed ✅
+- ~~change account icon back to icon instead of profile pic~~ - Completed ✅
+- ~~create a compressed top header when user starts scrolling - remove user name, day of week, floating add button and navbar~~ - Completed ✅ (header redesigned: month/year + centered user switcher + share button)
+- ~~share button on avatar tray: when viewing someone else, triggers native share/copy link directly (no bottom sheet) - currently it throws an error "failed to create link"~~ - Completed ✅ (share button hidden when viewing someone else's log — privacy restriction)
+- ~~use different color fills for different users in avatar tray instead of same green - color should start persistent across sessions (making it easier for the viewer to create a mental map for everyday use).~~ - Completed ✅ (deterministic color from user ID — 8 Apple-style colors, consistent across sessions)
+- ~~always shows other users in bottom sheet in the order they were shared with the viewer.~~ - Completed ✅ (sorted by created_at ASC in RPC + client)
 
 ## v3 Goals
 
@@ -113,7 +128,7 @@ Level 3: Blood tests suggestions and report intelligence
 - High protein, high carb, high fat, high fibre tags instead of detailed values
 - Give cues to the user during on what macros to focus on
 - Loading states animations/visuals + other "cool" things
-- ~Meal level summaries of cal + macros — calories done (inline after meal name with dot separator), macros not yet~ - Completed ✅
+- ~~Meal level summaries of cal + macros — calories done (inline after meal name with dot separator), macros not yet~~ - Completed ✅
 - Dynamic goal setting: change calorie and macro targets for remaining days based on week-till-date logs. Also possible to include workout data to change calorie goals.
 
 ---
