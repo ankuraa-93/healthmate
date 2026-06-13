@@ -1,0 +1,28 @@
+HealthMate — Release Notes
+
+Sharing
+- Share your food log with friends and family — tap Share on the dashboard to give someone instant access by email.
+- Request to view someone else's log — they'll get a request to approve next time they open the app.
+- Switch between your log and connected users' logs with the dropdown in the header — view their calories, macros, meals, and photos inline.
+- Remove connections anytime from the Share sheet or user switcher (with confirmation).
+- Works with emails not yet on the platform — the connection activates automatically when they sign up.
+
+Before you share
+- First-time sharers see a quick profile setup — upload a photo and set your name so others can identify you easily.
+- Skippable if you're in a hurry.
+
+Account
+- Bottom nav now shows a clean icon instead of your profile photo.
+
+Photos
+- Failed photo identifications no longer lose your image — retry anytime (works even after a refresh), straight from a Retry button on the error.
+- Failed photos now stay neatly in the top photo tray instead of cluttering meal sections.
+
+Logging
+- The Log Food screen is cleaner after you log — the input box hides so you can review your items without extra scrolling.
+- Quantity fields can now be fully cleared while editing.
+- If we can't parse your entry, your typed text is restored so you don't have to retype.
+
+Polish
+- Food cards no longer slide open by accident while scrolling.
+- Bottom sheets stay fully on-screen on mobile (titles no longer scroll out of view).

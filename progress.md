@@ -1139,15 +1139,30 @@ Built a full sharing system: users can share their food log with others (by emai
 - Food cards: `image_url` nullified for `input_source === 'image'` entries so source photos don't appear as food thumbnails; library images only
 - Meal card background: added `--meal-bg` CSS var to shared view so FoodCard bg matches meal header strip
 
+### Share feature polish (Jun 13 session 2)
+
+All 5 pending share items completed + additional polish:
+
+**Completed items:**
+1. **"Before you share" profile nudge** — when user taps Share without display name or photo, a setup sheet appears first. Amber info banner with dynamic text ("Set a display photo & name" / "Set a display photo" / "Set a display name"). Account-page-style profile card (avatar with camera badge + name input + email). Two CTAs: grey "Skip" left, green "Proceed" right (activates only when both photo and name set). Avatar upload saves to DB immediately but only syncs to parent on Proceed/Skip to prevent auto-dismiss.
+2. **Account icon** — bottom nav changed from profile photo/initials to plain User icon. Removed profile fetch from BottomNav.
+3. **Share button hidden when viewing others** — prevents "Failed to create link" error. Privacy-correct: users can't create public share links for someone else's data.
+4. **Deterministic user colors** — 8 Apple-style colors (blue, orange, purple, pink, teal, red, yellow) assigned by user ID hash in UserSwitcherSheet. Green reserved for self. Consistent across sessions.
+5. **Connection ordering** — sorted by `accepted_at` (= `updated_at` in DB, when access was granted). RPC `get_viewable_connections` updated to return `sc.updated_at` aliased as `accepted_at`, `ORDER BY sc.updated_at ASC`. Client-side sort as safety net. Standalone migration `update-viewable-connections-rpc.sql` applied to prod.
+
+**Additional changes:**
+6. **Header CLS fix** — 3-column layout (`flex-1` | `flex-shrink-0` | `flex-1`) with fixed `h-9` row height. Share button show/hide no longer shifts center element.
+7. **Profile photo back in header** — 22px avatar next to name in the center user switcher.
+8. **Connection management moved to Share sheet** — X buttons on "Shared with" and "Shared with you" lists, all with `confirm()` prompt. Remove also available in UserSwitcherSheet. Sharing section removed from Settings page.
+9. **Label updates** — "Share log with others", "Request others to share", "Shared with", "Shared with you". Help text removed from both sections.
+
+**Committed and pushed:** `3271705` feat: share connections — two-way log sharing with inline viewing
+
 ### >>> RESUME HERE next session
-1. **Not yet committed or deployed** — all share connection changes are local only. DB migration already applied to prod.
-2. **Remaining pending share changes** (see enhancements.md "Pending share feature changes"):
-   - Nudge user to set display name/profile pic when sharing (skip if both set)
-   - Change account icon back to icon instead of profile pic
-   - Share button fix: viewing someone else → native share/copy (currently errors "failed to create link")
-   - Different color fills per user in bottom sheet, persistent across sessions
-   - Connection order: show in order they were shared with viewer
-3. **Onboarding sheet needs refinement** — user has changes in mind for content/design. Test with `localhost:3002?onboard`.
-4. To re-test goals from scratch: `node reset-my-goals.mjs` (resets user to default goals).
-5. Deferred queue (in order): safety floors (min-cal clamp + aggressive-deficit warning) → goal-aware color coding (CalorieRing/MacroGrid) → adaptive TDEE (needs weight log) → dynamic daily goals (uses stored activity_workouts).
-6. **Avatar pixelation** — deferred. Try `next/image` with Supabase image transforms or a dedicated image CDN.
+1. **Onboarding sheet needs refinement** — user has changes in mind for content/design. Test with `localhost:3002?onboard`.
+2. To re-test goals from scratch: `node reset-my-goals.mjs` (resets user to default goals).
+3. Deferred queue (in order): safety floors (min-cal clamp + aggressive-deficit warning) → goal-aware color coding (CalorieRing/MacroGrid) → adaptive TDEE (needs weight log) → dynamic daily goals (uses stored activity_workouts).
+4. **Avatar pixelation** — deferred. Try `next/image` with Supabase image transforms or a dedicated image CDN.
+5. **No email notifications for sharing** — non-existing users' connections are stored by email and resolved on signup, but no notification is sent. Consider adding transactional emails or invite link flow.
+6. **Egg quantity inconsistency** — "1 boiled egg" logs different weights each time. Needs parser prompt fix.
+7. **Egg white vs boiled egg** — Gemini consistently misidentifies boiled egg white as boiled egg from images.
