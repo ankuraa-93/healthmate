@@ -67,45 +67,45 @@ const ShareImageCard = forwardRef<HTMLDivElement, ShareImageCardProps>(
           fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
           backgroundColor: '#FFFFFF',
           color: '#1C1C1E',
-          padding: '24px 20px 16px',
+          padding: '20px 16px 12px',
           boxSizing: 'border-box',
         }}
       >
         {/* Header: name + date */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
           {avatarUrl ? (
             <img
               src={avatarUrl}
               alt=""
               crossOrigin="anonymous"
-              style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }}
+              style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }}
             />
           ) : (
             <div style={{
-              width: 36, height: 36, borderRadius: '50%',
+              width: 32, height: 32, borderRadius: '50%',
               backgroundColor: '#E5E5EA', display: 'flex',
               alignItems: 'center', justifyContent: 'center',
-              fontSize: 16, fontWeight: 600, color: '#8E8E93',
+              fontSize: 14, fontWeight: 600, color: '#8E8E93',
             }}>
               {(displayName ?? '?')[0].toUpperCase()}
             </div>
           )}
           <div>
-            <div style={{ fontSize: 16, fontWeight: 600, lineHeight: 1.3 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.3 }}>
               {displayName ?? 'My food log'}
             </div>
-            <div style={{ fontSize: 13, color: '#8E8E93', lineHeight: 1.3 }}>
+            <div style={{ fontSize: 12, color: '#8E8E93', lineHeight: 1.3 }}>
               {dateStr}
             </div>
           </div>
         </div>
 
         {/* Ring + Macros */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
           {/* Calorie ring */}
           <div style={{ flexShrink: 0 }}>
-            <div style={{ position: 'relative', width: 130, height: 130 }}>
-              <svg width="130" height="130" viewBox="0 0 150 150" style={{ transform: 'rotate(-90deg)' }}>
+            <div style={{ position: 'relative', width: 110, height: 110 }}>
+              <svg width="110" height="110" viewBox="0 0 150 150" style={{ transform: 'rotate(-90deg)' }}>
                 <circle cx="75" cy="75" r="65" fill="none" stroke="#E5E5EA" strokeWidth="12" />
                 <circle
                   cx="75" cy="75" r="65" fill="none"
@@ -118,11 +118,11 @@ const ShareImageCard = forwardRef<HTMLDivElement, ShareImageCardProps>(
                 position: 'absolute', inset: 0, display: 'flex',
                 flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
               }}>
-                <span style={{ fontSize: 26, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
+                <span style={{ fontSize: 22, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 2 }}>
                   {totals.calories}
-                  <Zap size={14} strokeWidth={2.5} />
+                  <Zap size={12} strokeWidth={2.5} />
                 </span>
-                <span style={{ fontSize: 12, color: '#8E8E93', marginTop: 1 }}>
+                <span style={{ fontSize: 10, color: '#8E8E93', marginTop: 1 }}>
                   of {profile.daily_calorie_goal} cal
                 </span>
               </div>
@@ -130,21 +130,21 @@ const ShareImageCard = forwardRef<HTMLDivElement, ShareImageCardProps>(
           </div>
 
           {/* Macro bars */}
-          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 16px' }}>
+          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 14px' }}>
             {macros.map(macro => {
               const pct = Math.min((macro.value / macro.target) * 100, 100);
               const macroRatio = macro.value / macro.target;
               const barColor = getBarColor(macroRatio, calRatio);
               return (
-                <div key={macro.label} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div key={macro.label} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
                     {macro.label}
-                    <macro.Icon size={13} color="#8E8E93" />
+                    <macro.Icon size={11} color="#8E8E93" />
                   </span>
-                  <div style={{ width: '80%', height: 5, backgroundColor: '#E5E5EA', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{ width: '80%', height: 4, backgroundColor: '#E5E5EA', borderRadius: 3, overflow: 'hidden' }}>
                     <div style={{ height: '100%', width: `${pct}%`, backgroundColor: barColor, borderRadius: 3 }} />
                   </div>
-                  <span style={{ fontSize: 11, color: '#AEAEB2' }}>
+                  <span style={{ fontSize: 10, color: '#AEAEB2' }}>
                     {Math.round(macro.value)}g / {macro.target}g
                   </span>
                 </div>
@@ -154,7 +154,7 @@ const ShareImageCard = forwardRef<HTMLDivElement, ShareImageCardProps>(
         </div>
 
         {/* Divider */}
-        <div style={{ height: 1, backgroundColor: '#E5E5EA', marginBottom: 16 }} />
+        <div style={{ height: 1, backgroundColor: '#E5E5EA', marginBottom: 10 }} />
 
         {/* Meal sections */}
         {mealOrder.map(type => {
@@ -163,50 +163,37 @@ const ShareImageCard = forwardRef<HTMLDivElement, ShareImageCardProps>(
           const mealCals = entries.reduce((sum, e) => sum + (e.calories ?? 0), 0);
 
           return (
-            <div key={type} style={{ marginBottom: 14 }}>
+            <div key={type} style={{ marginBottom: 10 }}>
               {/* Meal card */}
-              <div style={{ backgroundColor: '#F8F8FA', borderRadius: 12, overflow: 'hidden' }}>
+              <div style={{ backgroundColor: '#F8F8FA', borderRadius: 10, overflow: 'hidden' }}>
                 {/* Meal header */}
-                <div style={{ padding: '10px 14px 6px' }}>
-                  <span style={{ fontSize: 12, fontWeight: 500, color: '#AEAEB2', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                <div style={{ padding: '8px 12px 4px' }}>
+                  <span style={{ fontSize: 11, fontWeight: 500, color: '#AEAEB2', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                     {mealLabels[type]}
                   </span>
                   {mealCals > 0 && (
-                    <span style={{ fontSize: 12, fontWeight: 500, color: '#AEAEB2' }}>
+                    <span style={{ fontSize: 11, fontWeight: 500, color: '#AEAEB2' }}>
                       {' '}&middot; {mealCals} cal
                     </span>
                   )}
                 </div>
 
-                {/* Food items */}
-                {entries.map((entry, i) => {
-                  const unitLabel = entry.unit === 'ml' ? 'ml' : 'g';
-                  return (
-                    <div key={entry.id}>
-                      {i > 0 && <div style={{ height: 1, backgroundColor: '#E5E5EA', margin: '0 14px' }} />}
-                      <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                        {/* Thumbnail — always use letter avatar for reliability */}
-                        <div style={{
-                          width: 40, height: 40, borderRadius: 10, flexShrink: 0,
-                          backgroundColor: '#E5E5EA', display: 'flex',
-                          alignItems: 'center', justifyContent: 'center',
-                          fontSize: 16, color: '#8E8E93',
-                        }}>
-                          {entry.food_name[0].toUpperCase()}
+                {/* Food items — two-column grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, padding: '2px 0 6px' }}>
+                  {entries.map((entry) => {
+                    const unitLabel = entry.unit === 'ml' ? 'ml' : 'g';
+                    return (
+                      <div key={entry.id} style={{ padding: '4px 12px', minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 500, lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {entry.food_name}
                         </div>
-                        {/* Name + quantity/cal */}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.3 }}>
-                            {entry.food_name}
-                          </div>
-                          <div style={{ fontSize: 13, color: '#8E8E93', marginTop: 1 }}>
-                            {entry.quantity_g}{unitLabel} &middot; {entry.calories} cal
-                          </div>
+                        <div style={{ fontSize: 11, color: '#8E8E93', marginTop: 1 }}>
+                          {entry.quantity_g}{unitLabel} &middot; {entry.calories} cal
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             </div>
           );
@@ -214,7 +201,7 @@ const ShareImageCard = forwardRef<HTMLDivElement, ShareImageCardProps>(
 
         {/* Footer branding */}
         <div style={{
-          textAlign: 'center', paddingTop: 8, fontSize: 12,
+          textAlign: 'center', paddingTop: 4, fontSize: 11,
           color: '#AEAEB2', fontWeight: 500, letterSpacing: '0.02em',
         }}>
           Calorrific
