@@ -2,9 +2,11 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Send, UserPlus, Eye, Check, XIcon, Link2, Share2, ChevronDown, Camera } from 'lucide-react';
-import { PendingRequest, ManagedConnection } from '@/lib/types';
+import { X, Send, UserPlus, Eye, Check, XIcon, Link2, Share2, ChevronDown, Camera, Image as ImageIcon } from 'lucide-react';
+import { toPng } from 'html-to-image';
+import { PendingRequest, ManagedConnection, FoodLogEntry, DailyTotals, Profile } from '@/lib/types';
 import { createShareConnection, updateConnectionStatus, getOrCreateShareLink, fetchAllMyConnections, uploadAvatar, updateProfile } from '@/lib/supabase-data';
+import ShareImageCard from './ShareImageCard';
 
 interface ShareSheetProps {
   open: boolean;
@@ -18,6 +20,10 @@ interface ShareSheetProps {
   selfAvatarUrl: string | null;
   selfEmail: string | null;
   onProfileUpdate: (fields: { display_name?: string; avatar_url?: string }) => void;
+  logs: FoodLogEntry[];
+  totals: DailyTotals;
+  profile: Profile;
+  selectedDate: Date;
 }
 
 interface SearchResult {
@@ -405,7 +411,7 @@ function ProfileSetupView({ userId, displayName, avatarUrl, email, onDone, onSki
   );
 }
 
-export default function ShareSheet({ open, onClose, pendingRequests, onToast, onRefresh, userId, logDate, selfDisplayName, selfAvatarUrl, selfEmail, onProfileUpdate }: ShareSheetProps) {
+export default function ShareSheet({ open, onClose, pendingRequests, onToast, onRefresh, userId, logDate, selfDisplayName, selfAvatarUrl, selfEmail, onProfileUpdate, logs, totals, profile, selectedDate }: ShareSheetProps) {
   const needsProfileSetup = !selfDisplayName || !selfAvatarUrl;
   const [profileSetupDismissed, setProfileSetupDismissed] = useState(false);
   const showProfileSetup = open && needsProfileSetup && !profileSetupDismissed;
@@ -425,6 +431,8 @@ export default function ShareSheet({ open, onClose, pendingRequests, onToast, on
   const [shareDropdownOpen, setShareDropdownOpen] = useState(true);
   const [requestDropdownOpen, setRequestDropdownOpen] = useState(true);
   const [canDrag, setCanDrag] = useState(false);
+  const [generatingImage, setGeneratingImage] = useState(false);
+  const shareCardRef = useRef<HTMLDivElement>(null);
   const shareInputRef = useRef<HTMLInputElement>(null);
   const requestInputRef = useRef<HTMLInputElement>(null);
 
@@ -500,6 +508,54 @@ export default function ShareSheet({ open, onClose, pendingRequests, onToast, on
     try {
       await navigator.share({ title: 'My food log', url });
     } catch {}
+  };
+
+  const handleShareImage = async () => {
+    if (!shareCardRef.current) return;
+    setGeneratingImage(true);
+    try {
+      const node = shareCardRef.current;
+      // Temporarily attach to body so it has real layout for capture
+      const wrapper = document.createElement('div');
+      wrapper.style.cssText = 'position:fixed;left:0;top:0;z-index:99999;pointer-events:none;';
+      wrapper.appendChild(node);
+      document.body.appendChild(wrapper);
+      // Wait one frame for layout
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+      const dataUrl = await toPng(node, {
+        pixelRatio: 3,
+        cacheBust: true,
+        backgroundColor: '#FFFFFF',
+      });
+
+      // Move card back to its original parent
+      wrapper.removeChild(node);
+      document.body.removeChild(wrapper);
+
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const file = new File([blob], 'food-log.png', { type: 'image/png' });
+
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'My food log',
+        });
+      } else {
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = 'food-log.png';
+        a.click();
+        onToast('Image saved');
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name !== 'AbortError') {
+        onToast('Failed to share image');
+      }
+    } finally {
+      setGeneratingImage(false);
+    }
   };
 
   const handleShareAll = async () => {
@@ -605,6 +661,7 @@ export default function ShareSheet({ open, onClose, pendingRequests, onToast, on
   };
 
   return (
+    <>
     <AnimatePresence>
       {open && (
         <>
@@ -859,6 +916,19 @@ export default function ShareSheet({ open, onClose, pendingRequests, onToast, on
                 </AnimatePresence>
               </div>
 
+              {/* Share as image */}
+              <motion.button
+                className="w-full flex items-center justify-center gap-2 py-3.5 bg-accent rounded-xl border-none cursor-pointer disabled:opacity-50 mb-2.5"
+                onClick={handleShareImage}
+                disabled={generatingImage}
+                whileTap={{ scale: 0.97 }}
+              >
+                <ImageIcon size={16} className="text-white" />
+                <span className="text-[14px] font-semibold text-white">
+                  {generatingImage ? 'Generating...' : 'Share as image'}
+                </span>
+              </motion.button>
+
               {/* Quick share: copy link + share link */}
               <div className="flex gap-2.5">
                 <motion.button
@@ -886,5 +956,21 @@ export default function ShareSheet({ open, onClose, pendingRequests, onToast, on
         </>
       )}
     </AnimatePresence>
+
+    {/* Hidden card for image capture */}
+    {open && (
+      <div style={{ position: 'absolute', left: -9999, top: 0, overflow: 'hidden' }}>
+        <ShareImageCard
+          ref={shareCardRef}
+          displayName={selfDisplayName}
+          avatarUrl={selfAvatarUrl}
+          date={selectedDate}
+          totals={totals}
+          profile={profile}
+          logs={logs}
+        />
+      </div>
+    )}
+    </>
   );
 }

@@ -1530,6 +1530,10 @@ export default function DashboardPage() {
         selfAvatarUrl={profile.avatar_url}
         selfEmail={user?.email ?? null}
         onProfileUpdate={(fields) => setProfile(prev => ({ ...prev, ...fields }))}
+        logs={logs}
+        totals={totals}
+        profile={profile}
+        selectedDate={selectedDate}
       />
 
       <UserSwitcherSheet
