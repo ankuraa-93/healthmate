@@ -41,6 +41,16 @@ function getInitial(name?: string | null, email?: string | null): string {
   return '?';
 }
 
+function buildShareTitle(name: string | null, email: string | null, date: Date): string {
+  const firstName = name?.trim().split(/\s+/)[0] || email?.split('@')[0] || 'My food log';
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const mon = months[date.getMonth()];
+  const dd = date.getDate();
+  const dow = days[date.getDay()];
+  return `${firstName} - ${mon} ${dd}, ${dow}`;
+}
+
 function getDisplayLabel(r: SearchResult): string {
   if (r.display_name && r.email) return `${r.display_name} (${r.email})`;
   return r.email || r.display_name || '?';
@@ -471,7 +481,7 @@ export default function ShareSheet({ open, onClose, pendingRequests, onToast, on
     setSharingLink(false);
     if (!url) { onToast('Failed to create link'); return; }
     try {
-      await navigator.share({ title: 'My food log', url });
+      await navigator.share({ title: buildShareTitle(selfDisplayName, selfEmail, selectedDate), url });
     } catch {}
   };
 
@@ -505,7 +515,7 @@ export default function ShareSheet({ open, onClose, pendingRequests, onToast, on
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
         await navigator.share({
           files: [file],
-          title: 'My food log',
+          title: buildShareTitle(selfDisplayName, selfEmail, selectedDate),
         });
       } else {
         const a = document.createElement('a');
