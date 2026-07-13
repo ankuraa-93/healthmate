@@ -115,6 +115,8 @@ Level 3: Blood tests suggestions and report intelligence
 - ~~share button on avatar tray: when viewing someone else, triggers native share/copy link directly (no bottom sheet) - currently it throws an error "failed to create link"~~ - Completed ✅ (share button hidden when viewing someone else's log — privacy restriction)
 - ~~use different color fills for different users in avatar tray instead of same green - color should start persistent across sessions (making it easier for the viewer to create a mental map for everyday use).~~ - Completed ✅ (deterministic color from user ID — 8 Apple-style colors, consistent across sessions)
 - ~~always shows other users in bottom sheet in the order they were shared with the viewer.~~ - Completed ✅ (sorted by created_at ASC in RPC + client)
+- ~~Redesign share overlay — 3 horizontal icon options (Share as image, Copy link, Share link) + OR separator + inline "Share log on Calorrific" section with search input and help text. Removed "Request others to share". Fixed share image flashing on screen during capture.~~ - Completed ✅
+- ~~Share text not appearing on Android — `navigator.share()` was passing `title` (used by iOS) but not `text` (used by Android). Switched to `text` only for both image and link sharing so it works on both platforms without duplicating on iOS.~~ - Completed ✅
 
 ## v3 Goals
 

@@ -481,7 +481,7 @@ export default function ShareSheet({ open, onClose, pendingRequests, onToast, on
     setSharingLink(false);
     if (!url) { onToast('Failed to create link'); return; }
     try {
-      await navigator.share({ title: buildShareTitle(selfDisplayName, selfEmail, selectedDate), url });
+      await navigator.share({ text: buildShareTitle(selfDisplayName, selfEmail, selectedDate), url });
     } catch {}
   };
 
@@ -515,7 +515,7 @@ export default function ShareSheet({ open, onClose, pendingRequests, onToast, on
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
         await navigator.share({
           files: [file],
-          title: buildShareTitle(selfDisplayName, selfEmail, selectedDate),
+          text: buildShareTitle(selfDisplayName, selfEmail, selectedDate),
         });
       } else {
         const a = document.createElement('a');
