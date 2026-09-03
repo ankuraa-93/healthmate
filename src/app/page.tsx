@@ -465,7 +465,7 @@ export default function DashboardPage() {
       source_image_url: null,
     });
     if (entry) {
-      setLogs(prev => [...prev, { ...entry, image_url: null }]);
+      setLogs(prev => [...prev, { ...entry, image_url: item.image_url ?? null }]);
       setSuggestions(prev => prev.filter(s => !(s.food_name === item.food_name && s.meal_type === item.meal_type)));
       showToast(`${item.food_name} logged ✓`);
     }

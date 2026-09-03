@@ -388,6 +388,7 @@ export interface SuggestedFood {
   food_library_id: string | null;
   meal_type: string;
   pattern: 'daily' | 'weekly' | 'biweekly';
+  image_url: string | null;
 }
 
 function addDays(date: Date, days: number): string {
@@ -410,7 +411,7 @@ export async function fetchSuggestions(userId: string, targetDate: Date): Promis
 
   const { data, error } = await supabase
     .from('food_log')
-    .select('food_name, quantity_g, calories, protein, carbs, fat, fibre, unit, food_library_id, meal_type, logged_date')
+    .select('food_name, quantity_g, calories, protein, carbs, fat, fibre, unit, food_library_id, meal_type, logged_date, food_library:food_library_id(image_url)')
     .eq('user_id', userId)
     .eq('status', 'confirmed')
     .in('logged_date', lookbackDates);
@@ -437,6 +438,7 @@ export async function fetchSuggestions(userId: string, targetDate: Date): Promis
   const addMatch = (row: LogRow, pattern: 'daily' | 'weekly' | 'biweekly') => {
     if (seen.has(row.food_name)) return;
     seen.add(row.food_name);
+    const lib = (row as Record<string, unknown>).food_library as { image_url: string | null } | null;
     suggestions.push({
       food_name: row.food_name,
       quantity_g: row.quantity_g,
@@ -449,6 +451,7 @@ export async function fetchSuggestions(userId: string, targetDate: Date): Promis
       food_library_id: row.food_library_id,
       meal_type: row.meal_type,
       pattern,
+      image_url: lib?.image_url ?? null,
     });
   };
 

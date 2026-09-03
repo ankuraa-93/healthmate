@@ -84,6 +84,22 @@ export async function POST(req: NextRequest) {
 
     // 3. Re-seed the curated day, dated relative to today.
     const rows = buildSeedRows(todayStr);
+
+    // Resolve food_library_id by name so food icons show via the join.
+    const foodNames = [...new Set(rows.map(r => r.food_name))];
+    const libRes = await fetch(
+      `${supabaseUrl}/rest/v1/food_library?name=in.(${foodNames.map(n => `"${n.replace(/"/g, '\\"')}"`).join(',')})&select=id,name`,
+      { headers },
+    );
+    const libLookup = new Map<string, string>();
+    if (libRes.ok) {
+      const libRows = await libRes.json() as { id: string; name: string }[];
+      for (const r of libRows) libLookup.set(r.name, r.id);
+    }
+    for (const row of rows) {
+      row.food_library_id = libLookup.get(row.food_name) ?? null;
+    }
+
     const seedRes = await fetch(`${supabaseUrl}/rest/v1/food_log`, {
       method: 'POST',
       headers,

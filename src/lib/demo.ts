@@ -136,7 +136,7 @@ function ymd(base: Date, offsetDays: number): string {
 
 export interface SeedRow {
   user_id: string;
-  food_library_id: null;
+  food_library_id: string | null;
   food_name: string;
   quantity_g: number;
   calories: number;
