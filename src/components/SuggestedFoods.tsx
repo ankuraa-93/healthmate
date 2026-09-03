@@ -44,14 +44,14 @@ export default function SuggestedFoods({ items, onAdd, onDismiss, embedded }: Su
           Hide
         </motion.button>
       </div>
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col">
         <AnimatePresence initial={false}>
         {visible.map((item, i) => {
           const unitLabel = item.unit === 'ml' ? 'ml' : 'g';
           return (
             <motion.div
               key={item.food_name}
-              className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 cursor-pointer hover:bg-accent/[0.06] active:bg-accent/10 transition-colors"
+              className="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 cursor-pointer hover:bg-accent/[0.06] active:bg-accent/10 transition-colors"
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
@@ -60,8 +60,8 @@ export default function SuggestedFoods({ items, onAdd, onDismiss, embedded }: Su
               onClick={() => onAdd(item)}
             >
               <div className="flex-1 min-w-0">
-                <span className="text-[13px] font-medium text-text-primary">{item.food_name}</span>
-                <span className="text-[12px] text-text-tertiary ml-1.5">{item.quantity_g}{unitLabel}</span>
+                <span className="text-[11px] font-medium text-text-primary">{item.food_name}</span>
+                <span className="text-[11px] text-text-tertiary ml-1.5">{item.quantity_g}{unitLabel}</span>
               </div>
               <div className="w-6 h-6 rounded-full bg-accent/10 flex items-center justify-center flex-shrink-0">
                 <Plus size={13} className="text-accent" />

@@ -1158,7 +1158,80 @@ All 5 pending share items completed + additional polish:
 
 **Committed and pushed:** `3271705` feat: share connections — two-way log sharing with inline viewing
 
+## Session: 2026-09-03 — Food icon pipeline + card redesign
+
+### Food icon generation pipeline
+
+**Batch script built and tested** (`scripts/generate-food-icons.mjs`):
+- Gemini 3.1 Flash image gen via REST API (`generativelanguage.googleapis.com/v1beta`)
+- 1:1 aspect ratio (must pass `imageConfig: { aspectRatio: '1:1' }` — without it Gemini returns landscape and sharp force-crops, degrading quality)
+- Resize to 256x256 with sharp, upload to Supabase `food-icons` bucket (public), update `food_library.image_url`
+- Flags: `--upload` (generate + upload + update DB), `--upload-only` (upload existing local files), `--dry-run`
+- ~10-12s per image generation
+
+**Prompt (v2, locked Sep 3 2026):**
+```
+photorealistic 3D render of [FOOD_NAME]. Clean product shot on a PURE WHITE (#FFFFFF) background — the background must be exactly #FFFFFF with zero grey, cream, or off-white tones. 3/4 view from a high 45-degree angle. Soft diffuse studio lighting from the top-left. Very subtle, soft cast shadow directly underneath the food only — shadow must not darken or tint the white background. Slightly desaturated natural colors, warm neutral tones. No text, no labels, no other objects, no packaging. Clean, minimal, premium aesthetic.
+```
+Key change from v1: explicit "PURE WHITE (#FFFFFF)" with "zero grey, cream, or off-white tones" + shadow constrained to not tint background. v1 had grey/off-white backgrounds that didn't blend with the app.
+
+**40 food icons generated and live in prod** (Supabase `food-icons` bucket, `food_library.image_url` updated). All using the v2 prompt. Foods include Indian (kesar ghewar, bhindi aloo sabzi, sambhar, kurmura, sattu kachori, ghee podi thatte idli, litti, ghugni), Western (tres leches, stroganoff, boneless chicken wings), branded (Snackible, Ritter Sport, Pringles, 4700 BC, Chaayos, Magnolia Bakery, Glens Bakehouse), desserts (kalakand, malai ghewar, custard), ice creams (Noice, Hocco, Ob Gobs).
+
+**Supabase storage**: `food-icons` bucket created (public, allowed: image/png, image/jpeg, image/webp, 1MB limit).
+
+**Other scripts created this session:**
+- `scripts/test-prompt.mjs` — quick 5-food prompt testing
+- `scripts/regen-old-icons.mjs` — re-generate specific foods with new prompt
+
+### Dashboard food card redesign
+
+**Changes applied to all views** (dashboard, share link, shared log sheet):
+
+1. **Removed grey meal cards** — replaced `rounded-xl` card backgrounds with edge-to-edge `h-px bg-bg-tertiary` separator above each meal section header
+2. **Increased food image size** — 44px → 72px (`w-[72px] h-[72px] rounded-xl`), letter placeholder bumped to `text-xl`
+3. **Removed separator between foods** — removed `showSeparator` prop from `FoodCard`; vertical padding (`py-2.5`) provides spacing instead
+4. **Aligned margins** — meal headers and food cards now use `px-4` (was `px-3.5`) matching the calorie ring container
+5. **Fixed double separator** — removed standalone separator between summary and meals section (each meal draws its own)
+6. **Removed meal-bg background** from FoodCard (no longer inside a card container)
+7. **Suggested foods card unchanged** — standalone suggestions-only card still uses `rounded-xl` with `card-bg` background
+
+### Grid layout variant (new)
+
+- **`FoodCardHorizontal.tsx`** — new component for grid view. Square image on top, food name (12px, 2-line clamp), quantity + cal (11px). Compact, no macros line.
+- **3-column grid layout** — `grid grid-cols-3 gap-3` within each meal section, cards wrap in-page (not horizontal scroll)
+- **Toggle button** — `LayoutGrid`/`LayoutList` icon in top-right of meals section, toggles between `list` and `grid` state
+- **No swipe-to-delete in grid mode** — tap to edit still works
+- **`.scrollbar-hide` utility** added to `globals.css` (initially for horizontal scroll, kept for reuse)
+
+### Files changed
+- `src/components/FoodCard.tsx` — removed `showSeparator`, increased image to 72px, aligned padding to `px-4`, removed `--meal-bg` background
+- `src/components/FoodCardHorizontal.tsx` — new grid card component
+- `src/app/page.tsx` — layout toggle state, grid/list rendering, removed double separator, aligned margins, imported new icons + component
+- `src/app/share/[token]/ShareDashboard.tsx` — same meal section redesign (no card bg, edge-to-edge separator, aligned margins)
+- `src/components/SharedLogSheet.tsx` — same meal section redesign
+- `src/app/globals.css` — `.scrollbar-hide` utility
+- `scripts/generate-food-icons.mjs` — batch icon generation pipeline
+- `scripts/test-prompt.mjs` — prompt testing script
+- `scripts/regen-old-icons.mjs` — re-generation script
+
+### Build status
+- `next build` clean, server on :3002
+- **NOT committed/pushed** — design still being iterated
+
 ### >>> RESUME HERE next session
+
+**Active design iteration (pick up immediately):**
+- Grid vs list layout toggle is live — user was reviewing the 3-column grid variant
+- 40 food icons live in prod, 1171 foods still need icons
+
+**Food icon pipeline — pending integration (discussed, not yet built):**
+1. **Integrate pipeline with match-food route** — trigger async icon gen when a new food is inserted into `food_library` (use `waitUntil()` or non-awaited promise, do NOT block food logging)
+2. **Fallback image for newly added foods** — letter placeholder shows while async gen runs (~12s); icon appears on next view/refresh
+3. **Fallback image for gen failures** — keep letter placeholder if Gemini can't generate; no retry loop
+4. **Image re-gen for existing foods without icons** — when user logs a food that has no `image_url`, trigger background generation
+5. **Backfill all existing foods** — batch script to generate icons for all 1171+ remaining foods in `food_library` (run `scripts/generate-food-icons.mjs` with higher limit, in batches to avoid rate limits)
+
+**Other pending items:**
 1. **Onboarding sheet needs refinement** — user has changes in mind for content/design. Test with `localhost:3002?onboard`.
 2. To re-test goals from scratch: `node reset-my-goals.mjs` (resets user to default goals).
 3. Deferred queue (in order): safety floors (min-cal clamp + aggressive-deficit warning) → goal-aware color coding (CalorieRing/MacroGrid) → adaptive TDEE (needs weight log) → dynamic daily goals (uses stored activity_workouts).

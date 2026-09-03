@@ -7,6 +7,7 @@ import BottomNav from '@/components/BottomNav';
 import CalorieRing from '@/components/CalorieRing';
 import MacroGrid from '@/components/MacroGrid';
 import FoodCard from '@/components/FoodCard';
+import FoodCardHorizontal from '@/components/FoodCardHorizontal';
 import FAB from '@/components/FAB';
 import AddFoodSheet from '@/components/AddFoodSheet';
 import { ReviewPhoto } from '@/components/PhotoReviewSheet';
@@ -413,10 +414,6 @@ export default function DashboardPage() {
     handleDeleteWithUndo(entryId, true);
   }, [handleDeleteWithUndo]);
 
-  const handleSwipeDelete = useCallback((entryId: string) => {
-    handleDeleteWithUndo(entryId);
-  }, [handleDeleteWithUndo]);
-
   // --- Replace food flow ---
 
   const handleEditReplace = (entry: FoodLogEntry) => {
@@ -708,7 +705,7 @@ export default function DashboardPage() {
           <RefreshCw size={20} className={pullDistance > 50 || refreshing ? 'text-accent' : 'text-text-tertiary'} />
         </motion.div>
       </motion.div>
-      <div className="px-4 pb-4 pt-2">
+      <div className="px-5 pt-2">
 
         {/* Summary: ring + macros */}
         <motion.div
@@ -847,10 +844,11 @@ export default function DashboardPage() {
             </div>
           );
         })()}
+      </div>
 
-        {/* Separator: summary / meals */}
-        <div className="h-px bg-bg-tertiary mb-4" />
+      <div className="h-px bg-bg-tertiary" />
 
+      <div className="pb-4">
         {!isViewingSelf && (
           (() => {
             const mealOrder = ['breakfast', 'lunch', 'snack', 'dinner'] as const;
@@ -868,14 +866,18 @@ export default function DashboardPage() {
               </div>
             );
 
+            let isFirstSharedMeal = true;
             return mealOrder.map(type => {
               const entries = sharedEntries.filter(e => e.meal_type === type);
               if (entries.length === 0) return null;
+              const firstShared = isFirstSharedMeal;
+              isFirstSharedMeal = false;
               const mealCal = entries.reduce((s, e) => s + (e.calories ?? 0), 0);
               return (
-                <div key={type} className="mb-3">
-                  <div className="rounded-xl overflow-hidden mb-2" style={{ backgroundColor: 'var(--color-card-bg)', '--meal-bg': 'var(--color-card-bg)' } as React.CSSProperties}>
-                    <div className="px-3.5 pt-2.5 pb-1">
+                <div key={type} className="mb-1">
+                  <div className="overflow-hidden">
+                    {!firstShared && <div className="h-px bg-bg-tertiary mx-5" />}
+                    <div className="px-5 pt-2.5 pb-1">
                       <span className="text-[12px] font-medium text-text-tertiary uppercase tracking-wide">{mealLabels[type]}</span>
                       {mealCal > 0 && <span className="text-[12px] font-medium text-text-tertiary"> &middot; {mealCal} cal</span>}
                     </div>
@@ -896,7 +898,6 @@ export default function DashboardPage() {
                           created_at: '', updated_at: '',
                         }}
                         index={i}
-                        showSeparator={i > 0}
                       />
                     ))}
                   </div>
@@ -918,6 +919,7 @@ export default function DashboardPage() {
           const allSuggestions = suggestions;
 
           let cardIndex = 0;
+          let isFirstMeal = true;
           return mealOrder.map((type) => {
             const entries = logs.filter(l => l.meal_type === type);
             // Only in-progress jobs affect the meal section; failed photos live solely
@@ -932,15 +934,16 @@ export default function DashboardPage() {
 
             if (!hasContent) return null;
 
+            const first = isFirstMeal;
+            isFirstMeal = false;
+
             return (
-              <div key={type} className="mb-3">
-                {/* Grouped meal card */}
+              <div key={type} className="mb-1">
+                {/* Meal section with edge-to-edge separator */}
                 {(entries.length > 0 || mealJobs.length > 0) && (
-                  <div
-                    className="rounded-xl overflow-hidden mb-2"
-                    style={{ backgroundColor: 'var(--color-card-bg)', '--meal-bg': 'var(--color-card-bg)' } as React.CSSProperties}
-                  >
-                    <div className="px-3.5 pt-2.5 pb-1">
+                  <div className="overflow-hidden">
+                    {!first && <div className="h-px bg-bg-tertiary mx-5" />}
+                    <div className="px-5 pt-2.5 pb-1">
                       <span className="text-[12px] font-medium text-text-tertiary uppercase tracking-wide">
                         {mealLabels[type]}
                       </span>
@@ -950,21 +953,19 @@ export default function DashboardPage() {
                         </span>
                       )}
                     </div>
-                    <AnimatePresence>
-                      {entries.map((entry, i) => {
+                    <div className="grid grid-cols-3 gap-x-5 gap-y-5 px-5 pb-3">
+                      {entries.map((entry) => {
                         const idx = cardIndex++;
                         return (
-                          <FoodCard
+                          <FoodCardHorizontal
                             key={entry.id}
                             entry={entry}
                             index={idx}
-                            showSeparator={i > 0}
                             onClick={entry.status === 'confirmed' ? () => setEditingEntry(entry) : undefined}
-                            onDelete={entry.status === 'confirmed' ? handleSwipeDelete : undefined}
                           />
                         );
                       })}
-                    </AnimatePresence>
+                    </div>
                     {/* Processing status in meal section. Failed photos are shown only
                         in the photo tray up top, not here (avoid duplicate noise). */}
                     {(() => {
@@ -972,8 +973,8 @@ export default function DashboardPage() {
                       if (processingCount === 0) return null;
                       return (
                         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-                          {entries.length > 0 && <div className="h-px bg-bg-tertiary mx-3.5" />}
-                          <div className="p-3 px-3.5 flex flex-col gap-1.5">
+                          {entries.length > 0 && <div className="h-px bg-bg-tertiary" />}
+                          <div className="p-3 px-5 flex flex-col gap-1.5">
                             <div className="flex items-center gap-2.5">
                               <motion.div
                                 className="w-2 h-2 rounded-full bg-accent"
@@ -992,11 +993,11 @@ export default function DashboardPage() {
                       {mealSuggestions.length > 0 && (
                         <motion.div
                           key={`suggest-${type}`}
+                          className="px-5 pb-2"
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           exit={{ opacity: 0, height: 0, overflow: 'hidden', transition: { duration: 0.2 } }}
                         >
-                          <div className="h-px bg-bg-tertiary" />
                           <SuggestedFoods
                             items={mealSuggestions}
                             onAdd={handleSuggestionAdd}
@@ -1011,24 +1012,26 @@ export default function DashboardPage() {
 
                 {/* Suggestions-only card when no logged entries and no processing jobs */}
                 {entries.length === 0 && mealJobs.length === 0 && mealSuggestions.length > 0 && (
-                  <div
-                    className="rounded-xl overflow-hidden mb-2"
-                    style={{ backgroundColor: 'var(--color-card-bg)' }}
-                  >
-                    <div className="px-3.5 pt-2.5 pb-1">
-                      <span className="text-[12px] font-medium text-text-tertiary uppercase tracking-wide">{mealLabels[type]}</span>
+                  <>
+                    {!first && <div className="h-px bg-bg-tertiary mx-5" />}
+                    <div
+                      className="mx-5 mt-2 rounded-xl overflow-hidden mb-2"
+                      style={{ backgroundColor: 'var(--color-card-bg)' }}
+                    >
+                      <div className="px-4 pt-2.5 pb-1">
+                        <span className="text-[12px] font-medium text-text-tertiary uppercase tracking-wide">{mealLabels[type]}</span>
+                      </div>
+                      <AnimatePresence>
+                        <SuggestedFoods
+                          key={`suggest-${type}`}
+                          items={mealSuggestions}
+                          onAdd={handleSuggestionAdd}
+                          onDismiss={() => dismissSuggestions(`${formatDate(selectedDate)}:${type}`)}
+                          embedded
+                        />
+                      </AnimatePresence>
                     </div>
-                    <div className="h-px bg-bg-tertiary" />
-                    <AnimatePresence>
-                      <SuggestedFoods
-                        key={`suggest-${type}`}
-                        items={mealSuggestions}
-                        onAdd={handleSuggestionAdd}
-                        onDismiss={() => dismissSuggestions(`${formatDate(selectedDate)}:${type}`)}
-                        embedded
-                      />
-                    </AnimatePresence>
-                  </div>
+                  </>
                 )}
               </div>
             );

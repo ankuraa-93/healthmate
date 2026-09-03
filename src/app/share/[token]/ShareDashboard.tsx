@@ -229,7 +229,7 @@ export default function ShareDashboard({ token }: { token: string }) {
           </motion.div>
         </motion.div>
 
-        <div className="px-4 pb-4 pt-2">
+        <div className="px-5 pb-4 pt-2">
           {/* Summary */}
           <motion.div
             className="flex items-center gap-5 mb-4"
@@ -284,12 +284,10 @@ export default function ShareDashboard({ token }: { token: string }) {
             const mealCalories = entries.reduce((sum, e) => sum + (e.calories ?? 0), 0);
 
             return (
-              <div key={type} className="mb-3">
-                <div
-                  className="rounded-xl overflow-hidden mb-2"
-                  style={{ backgroundColor: 'var(--color-card-bg)', '--meal-bg': 'var(--color-card-bg)' } as React.CSSProperties}
-                >
-                  <div className="px-3.5 pt-2.5 pb-1">
+              <div key={type} className="mb-1">
+                <div className="overflow-hidden">
+                  <div className="h-px bg-bg-tertiary" />
+                  <div className="px-5 pt-2.5 pb-1">
                     <span className="text-[12px] font-medium text-text-tertiary uppercase tracking-wide">
                       {mealLabels[type]}
                     </span>
@@ -307,7 +305,6 @@ export default function ShareDashboard({ token }: { token: string }) {
                           key={entry.id}
                           entry={entry}
                           index={idx}
-                          showSeparator={i > 0}
                         />
                       );
                     })}

@@ -169,7 +169,7 @@ function SharedLogContent({ connection, onClose }: { connection: ViewableConnect
             <div className="w-6 h-6 border-2 border-bg-tertiary border-t-accent rounded-full animate-spin" />
           </div>
         ) : (
-          <div className="px-4 pb-4 pt-3">
+          <div className="px-5 pb-4 pt-3">
             {/* Summary */}
             <motion.div
               className="flex items-center gap-5 mb-4"
@@ -205,12 +205,10 @@ function SharedLogContent({ connection, onClose }: { connection: ViewableConnect
                 const mealCalories = mealEntries.reduce((sum, e) => sum + (e.calories ?? 0), 0);
 
                 return (
-                  <div key={type} className="mb-3">
-                    <div
-                      className="rounded-xl overflow-hidden mb-2"
-                      style={{ backgroundColor: 'var(--color-card-bg)' }}
-                    >
-                      <div className="px-3.5 pt-2.5 pb-1">
+                  <div key={type} className="mb-1">
+                    <div className="overflow-hidden">
+                      <div className="h-px bg-bg-tertiary" />
+                      <div className="px-5 pt-2.5 pb-1">
                         <span className="text-[12px] font-medium text-text-tertiary uppercase tracking-wide">
                           {MEAL_LABELS[type]}
                         </span>
@@ -225,7 +223,6 @@ function SharedLogContent({ connection, onClose }: { connection: ViewableConnect
                           key={entry.id}
                           entry={toFoodLogEntry(entry)}
                           index={i}
-                          showSeparator={i > 0}
                         />
                       ))}
                     </div>

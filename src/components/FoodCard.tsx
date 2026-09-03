@@ -8,14 +8,13 @@ import { FoodLogEntry } from '@/lib/types';
 interface FoodCardProps {
   entry: FoodLogEntry;
   index: number;
-  showSeparator?: boolean;
   onClick?: () => void;
   onDelete?: (entryId: string) => void;
 }
 
 const REVEAL_THRESHOLD = -80;
 
-export default function FoodCard({ entry, index, showSeparator, onClick, onDelete }: FoodCardProps) {
+export default function FoodCard({ entry, index, onClick, onDelete }: FoodCardProps) {
   const unitLabel = entry.unit === 'ml' ? 'ml' : 'g';
   const [imgFailed, setImgFailed] = useState(false);
   const showImage = entry.image_url && !imgFailed;
@@ -77,8 +76,6 @@ export default function FoodCard({ entry, index, showSeparator, onClick, onDelet
       exit={{ opacity: 0, x: -200, transition: { duration: 0.25 } }}
       transition={{ duration: 0.3, delay: index * 0.06, ease: [0.4, 0, 0.2, 1] }}
     >
-      {showSeparator && <div className="h-px bg-bg-tertiary mx-3.5" />}
-
       {/* Delete button behind */}
       <motion.div
         className="absolute inset-0 right-0 flex items-center justify-end pr-6 bg-destructive cursor-pointer"
@@ -90,7 +87,7 @@ export default function FoodCard({ entry, index, showSeparator, onClick, onDelet
 
       {/* Card row */}
       <motion.div
-        className={`p-3 px-3.5 relative ${onClick ? 'cursor-pointer' : ''}`}
+        className={`py-2.5 px-5 relative ${onClick ? 'cursor-pointer' : ''}`}
         drag={onDelete ? 'x' : false}
         dragConstraints={{ left: swiped ? -300 : -100, right: 0 }}
         dragElastic={0.05}
@@ -99,7 +96,7 @@ export default function FoodCard({ entry, index, showSeparator, onClick, onDelet
         onDragEnd={handleDragEnd}
         animate={{ x: swiped ? -80 : 0 }}
         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-        style={{ x, backgroundColor: 'var(--meal-bg, var(--color-bg-secondary))' }}
+        style={{ x }}
         onClick={() => {
           if (didDrag.current) return;
           if (swiped) {
@@ -115,11 +112,11 @@ export default function FoodCard({ entry, index, showSeparator, onClick, onDelet
             <img
               src={entry.image_url!}
               alt={entry.food_name}
-              className="w-11 h-11 rounded-[10px] flex-shrink-0 object-cover"
+              className="w-[72px] h-[72px] rounded-xl flex-shrink-0 object-cover"
               onError={() => setImgFailed(true)}
             />
           ) : (
-            <div className="w-11 h-11 rounded-[10px] flex-shrink-0 bg-bg-tertiary flex items-center justify-center text-lg">
+            <div className="w-[72px] h-[72px] rounded-xl flex-shrink-0 bg-bg-tertiary flex items-center justify-center text-xl">
               {entry.food_name.slice(0, 1).toUpperCase()}
             </div>
           )}
