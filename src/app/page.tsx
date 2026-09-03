@@ -848,7 +848,7 @@ export default function DashboardPage() {
 
       <div className="h-px bg-bg-tertiary" />
 
-      <div className="pb-4">
+      <div className="pb-24">
         {!isViewingSelf && (
           (() => {
             const mealOrder = ['breakfast', 'lunch', 'snack', 'dinner'] as const;
