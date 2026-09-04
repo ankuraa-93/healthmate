@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Drumstick, Wheat, Droplet, Leaf, Trash2, X, Info } from 'lucide-react';
+import { Drumstick, Wheat, Droplet, Leaf, X, Info } from 'lucide-react';
 import { FoodLogEntry, FoodLibraryItem } from '@/lib/types';
 import { calculateNutrition, scaleNutritionFromEntry, getQuantityWarning } from '@/lib/nutrition';
 import { fetchFoodLibraryItem } from '@/lib/supabase-data';
@@ -14,13 +14,13 @@ function EditFoodThumbnail({ imageUrl, name }: { imageUrl?: string | null; name:
       <img
         src={imageUrl}
         alt={name}
-        className="w-16 h-16 rounded-xl flex-shrink-0 object-cover"
+        className="w-[116px] h-[116px] rounded-xl flex-shrink-0 object-cover"
         onError={() => setFailed(true)}
       />
     );
   }
   return (
-    <div className="w-16 h-16 rounded-xl flex-shrink-0 bg-bg-tertiary flex items-center justify-center text-2xl">
+    <div className="w-[116px] h-[116px] rounded-xl flex-shrink-0 bg-bg-tertiary flex items-center justify-center text-2xl">
       {name.slice(0, 1).toUpperCase()}
     </div>
   );
@@ -44,7 +44,7 @@ interface EditFoodSheetProps {
 }
 
 const mealTypes = ['breakfast', 'lunch', 'snack', 'dinner'] as const;
-const adjustments = [-50, -10, +10, +50];
+const adjustments = [-25, -10, +10, +25];
 
 export default function EditFoodSheet({ entry, onClose, onSave, onDelete, onReplace }: EditFoodSheetProps) {
   // '' lets the field be cleared while editing; Save is disabled until it's a number again.
@@ -162,15 +162,44 @@ export default function EditFoodSheet({ entry, onClose, onSave, onDelete, onRepl
               ref={bodyRef}
               onPointerDown={() => setCanDrag((bodyRef.current?.scrollTop ?? 0) <= 0)}
               className="flex-1 overflow-y-auto px-6 pt-4 pb-2 scrollbar-none">
-              {/* Header: initial + name */}
+              {/* Header: photo + name + delete */}
               <motion.div
-                className="flex items-center gap-3 mb-6"
+                className="flex items-start gap-3 mb-6"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
               >
                 <EditFoodThumbnail imageUrl={entry.image_url} name={entry.food_name} />
-                <span className="text-[22px] font-medium flex-1">{entry.food_name}</span>
+                <div className="flex-1 min-w-0 min-h-[116px] flex flex-col pt-1 pb-1">
+                  <div>
+                    <span className="text-[17px] font-medium leading-snug line-clamp-2">{entry.food_name}</span>
+                    <div className="text-[12px] text-text-secondary mt-1">
+                      {qtyNum}{unitLabel} · {nutrition.calories} cal
+                    </div>
+                    <div className="mt-px text-[12px] text-text-secondary">
+                      <div className="flex items-center gap-1">
+                        <Drumstick size={12} className="flex-shrink-0" />
+                        <span>Protein {nutrition.protein}g</span>
+                        <span>·</span>
+                        <Wheat size={12} className="flex-shrink-0" />
+                        <span>Carbs {nutrition.carbs}g</span>
+                      </div>
+                      <div className="flex items-center gap-1 mt-px">
+                        <Droplet size={12} className="flex-shrink-0" />
+                        <span>Fat {nutrition.fat}g</span>
+                        <span>·</span>
+                        <Leaf size={12} className="flex-shrink-0" />
+                        <span>Fibre {nutrition.fibre}g</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => onDelete(entry.id)}
+                    className="mt-auto text-[13px] text-destructive underline decoration-dashed decoration-destructive/40 underline-offset-[3px] bg-transparent border-none cursor-pointer p-0 transition-colors self-start"
+                  >
+                    Delete
+                  </button>
+                </div>
                 <motion.button
                   onClick={onClose}
                   className="w-8 h-8 rounded-full bg-bg-secondary border-none flex items-center justify-center text-text-secondary cursor-pointer flex-shrink-0"
@@ -219,8 +248,8 @@ export default function EditFoodSheet({ entry, onClose, onSave, onDelete, onRepl
                 <div className="text-[13px] font-medium text-text-secondary uppercase tracking-wide mb-2">
                   Quantity
                 </div>
-                <div className="flex items-center gap-2 mb-3">
-                  <div className={`flex-1 flex items-center bg-bg-secondary rounded-xl px-4 py-3 transition-shadow ${qtyWarning?.highlight === 'quantity' ? 'ring-2 ring-orange-400' : 'focus-within:ring-2 focus-within:ring-accent/25'}`}>
+                <div className="mb-3">
+                  <div className={`flex items-center bg-bg-secondary rounded-xl px-4 py-3 transition-shadow ${qtyWarning?.highlight === 'quantity' ? 'ring-2 ring-orange-400' : 'focus-within:ring-2 focus-within:ring-accent/25'}`}>
                     <input
                       type="text"
                       inputMode="numeric"
@@ -231,13 +260,6 @@ export default function EditFoodSheet({ entry, onClose, onSave, onDelete, onRepl
                     />
                     <span className="text-[15px] text-text-secondary ml-1.5">{unitLabel}</span>
                   </div>
-                  <motion.button
-                    onClick={() => onDelete(entry.id)}
-                    className="w-11 h-11 rounded-xl bg-bg-secondary border-none flex items-center justify-center text-text-tertiary cursor-pointer hover:text-destructive hover:bg-destructive/10 transition-colors flex-shrink-0"
-                    whileTap={{ scale: 0.9 }}
-                  >
-                    <Trash2 size={18} />
-                  </motion.button>
                 </div>
                 <div className="flex gap-2">
                   {adjustments.map((delta) => (
@@ -300,32 +322,6 @@ export default function EditFoodSheet({ entry, onClose, onSave, onDelete, onRepl
                 )}
               </motion.div>
 
-              {/* Nutrition preview */}
-              <motion.div
-                className="bg-bg-secondary rounded-xl p-4 mb-2"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.25 }}
-              >
-                <div className="flex items-baseline gap-1.5 mb-3">
-                  <span className={`text-[28px] font-semibold ${qtyWarning?.highlight === 'calories' ? 'text-orange-500' : ''}`}>{nutrition.calories}</span>
-                  <span className={`text-[15px] ${qtyWarning?.highlight === 'calories' ? 'text-orange-500' : 'text-text-secondary'}`}>cal</span>
-                </div>
-                <div className="grid grid-cols-2 gap-y-2.5 gap-x-8">
-                  {[
-                    { label: 'Protein', value: nutrition.protein, icon: Drumstick },
-                    { label: 'Carbs', value: nutrition.carbs, icon: Wheat },
-                    { label: 'Fat', value: nutrition.fat, icon: Droplet },
-                    { label: 'Fibre', value: nutrition.fibre, icon: Leaf },
-                  ].map((macro) => (
-                    <div key={macro.label} className="flex items-center gap-2">
-                      <macro.icon size={14} className="text-text-secondary flex-shrink-0" />
-                      <span className="text-[13px] text-text-secondary">{macro.label}</span>
-                      <span className="text-[13px] font-medium ml-auto">{macro.value}g</span>
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
 
             </div>
 

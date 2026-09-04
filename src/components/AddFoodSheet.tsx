@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mic, ArrowUp, X, Check, ChevronDown, Trash2, Loader2, Camera, ArrowDown } from 'lucide-react';
+import { Mic, ArrowUp, X, Check, ChevronDown, Loader2, Camera, ArrowDown } from 'lucide-react';
 import { insertFoodLog, deleteFoodLog, updateFoodLog } from '@/lib/supabase-data';
 import { processImage } from '@/lib/image-utils';
 import { getQuantityWarning, scaleNutritionFromEntry } from '@/lib/nutrition';
@@ -695,7 +695,15 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
                         <div className="pt-2.5 pb-1">
                           <span className="text-[12px] font-medium text-text-tertiary uppercase tracking-wide">{group.label}</span>
                         </div>
-                        <div className="grid grid-cols-3 gap-x-5 gap-y-5 pb-3">
+                        <div
+                          className="grid grid-cols-3 gap-x-5 gap-y-5 pb-3"
+                          onClick={(e) => {
+                            if (expandedIndex !== null && !(e.target as HTMLElement).closest('[data-tray-card]')) {
+                              setExpandedIndex(null);
+                              setQtyDraft(null);
+                            }
+                          }}
+                        >
                           {group.entries.map(({ item, idx }, cardIndex) => {
                             const nutrition = scaleNutrition(item);
                             const isExpanded = expandedIndex === idx;
@@ -704,12 +712,13 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
                             return (
                               <motion.div
                                 key={item.id}
+                                data-tray-card
                                 className="min-w-0 cursor-pointer"
                                 initial={{ opacity: 0, scale: 0.9 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 exit={{ opacity: 0, scale: 0.95 }}
                                 transition={{ duration: 0.25, delay: cardIndex * 0.04 }}
-                                onClick={() => handleToggleExpand(idx)}
+                                onClick={(e) => { e.stopPropagation(); handleToggleExpand(idx); }}
                                 whileTap={{ scale: 0.96 }}
                               >
                                 <div className="relative mb-1.5">
@@ -747,71 +756,84 @@ function AddFoodSheetInner({ onClose, userId, logDate, onToast, onPhotosSubmitte
                             );
                           })}
                         </div>
-                        <AnimatePresence>
-                          {group.entries.some(({ idx }) => expandedIndex === idx) && (() => {
-                            const { item, idx } = group.entries.find(({ idx }) => expandedIndex === idx)!;
-                            const unitLabel = item.unit === 'ml' ? 'ml' : 'g';
-                            const qtyWarning = getQuantityWarning(item.quantity_g, item.calories_per_100g);
-                            return (
-                              <motion.div
-                                key={`expand-${item.id}`}
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: 'auto', opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                transition={{ duration: 0.25 }}
-                                className="overflow-hidden"
-                              >
-                                <div className="pt-2 pb-3 border-t border-bg-tertiary/50">
-                                  <div className="text-[13px] font-medium text-text-secondary mb-2">
-                                    {item.matched_library_name || item.name}
-                                  </div>
-                                  <div className="flex items-center gap-2 mb-2.5">
-                                    <div className={`flex-1 flex items-center bg-bg-secondary rounded-xl px-3.5 py-2.5 transition-shadow ${qtyWarning?.highlight === 'quantity' ? 'ring-2 ring-orange-400' : 'focus-within:ring-2 focus-within:ring-accent/25'}`}>
-                                      <input
-                                        type="text"
-                                        inputMode="numeric"
-                                        className="flex-1 bg-transparent border-none text-[17px] font-medium text-right outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                        value={qtyDraft !== null ? qtyDraft : item.quantity_g}
-                                        onChange={e => handleQtyDraftChange(idx, e.target.value)}
-                                        onBlur={() => setQtyDraft(null)}
-                                        onClick={e => e.stopPropagation()}
-                                      />
-                                      <span className="text-[15px] text-text-secondary ml-1.5">{unitLabel}</span>
-                                    </div>
-                                    <motion.button
-                                      className="w-11 h-11 rounded-xl bg-bg-secondary border-none flex items-center justify-center text-text-tertiary cursor-pointer flex-shrink-0 hover:text-destructive hover:bg-destructive/10 transition-colors"
-                                      onClick={() => handleRemoveItem(idx)}
-                                      whileTap={{ scale: 0.9 }}
-                                    >
-                                      <Trash2 size={18} />
-                                    </motion.button>
-                                  </div>
-                                  <div className="flex gap-2">
-                                    {[-50, -10, 10, 50].map(delta => (
-                                      <motion.button
-                                        key={delta}
-                                        className="flex-1 py-1.5 bg-bg-secondary border-none rounded-full text-[13px] font-medium text-text-secondary cursor-pointer hover:bg-bg-tertiary transition-colors"
-                                        onClick={() => { setQtyDraft(null); handleUpdateQuantity(idx, item.quantity_g + delta); }}
-                                        whileTap={{ scale: 0.95 }}
-                                      >
-                                        {delta > 0 ? '+' : '−'}{Math.abs(delta)}{unitLabel}
-                                      </motion.button>
-                                    ))}
-                                  </div>
-                                  {qtyWarning && (
-                                    <div className="text-[12px] text-orange-500 mt-2">{qtyWarning.message}</div>
-                                  )}
-                                </div>
-                              </motion.div>
-                            );
-                          })()}
-                        </AnimatePresence>
                       </div>
                     </div>
                   ));
                 })()}
 
-                <div className="flex justify-between items-center py-2.5 mt-1 border-t border-bg-tertiary/50">
+                <AnimatePresence>
+                  {expandedIndex !== null && trayItems[expandedIndex] && (() => {
+                    const item = trayItems[expandedIndex];
+                    const unitLabel = item.unit === 'ml' ? 'ml' : 'g';
+                    const qtyWarning = getQuantityWarning(item.quantity_g, item.calories_per_100g);
+                    const colIndex = (() => {
+                      const mealOrder = ['breakfast', 'lunch', 'snack', 'dinner'] as const;
+                      for (const meal of mealOrder) {
+                        const entries = trayItems.map((ti, i) => ({ ti, i })).filter(({ ti }) => ti.meal_type === meal);
+                        const pos = entries.findIndex(({ i }) => i === expandedIndex);
+                        if (pos !== -1) return pos % 3;
+                      }
+                      return 0;
+                    })();
+                    const arrowLeft = colIndex === 0 ? 'left-[16%]' : colIndex === 1 ? 'left-1/2' : 'left-[84%]';
+                    return (
+                      <motion.div
+                        key="expand-panel"
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 8 }}
+                        transition={{ duration: 0.15 }}
+                        className="mt-1 mb-2 relative"
+                      >
+                        <div className={`absolute -top-[6px] ${arrowLeft} -translate-x-1/2 w-3 h-3 bg-bg-primary border-l border-t border-bg-tertiary rounded-sm rotate-45 z-10`} />
+                        <div className="bg-bg-primary border border-bg-tertiary rounded-2xl px-4 py-3.5 relative">
+                          <div className="text-[13px] font-medium text-text-secondary mb-2.5 flex items-center gap-1.5">
+                            <span>{item.matched_library_name || item.name}</span>
+                            <span className="text-text-tertiary">·</span>
+                            <button
+                              onClick={() => handleRemoveItem(expandedIndex)}
+                              className="text-[13px] text-destructive underline decoration-dashed decoration-destructive/40 underline-offset-[3px] bg-transparent border-none cursor-pointer p-0 transition-colors"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                          <div className="mb-2.5">
+                            <div className={`flex items-center bg-bg-secondary rounded-xl px-3.5 py-2.5 transition-shadow ${qtyWarning?.highlight === 'quantity' ? 'ring-2 ring-orange-400' : 'focus-within:ring-2 focus-within:ring-accent/25'}`}>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                className="flex-1 bg-transparent border-none text-[17px] font-medium text-right outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                value={qtyDraft !== null ? qtyDraft : item.quantity_g}
+                                onChange={e => handleQtyDraftChange(expandedIndex, e.target.value)}
+                                onBlur={() => setQtyDraft(null)}
+                                onClick={e => e.stopPropagation()}
+                              />
+                              <span className="text-[15px] text-text-secondary ml-1.5">{unitLabel}</span>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            {[-25, -10, 10, 25].map(delta => (
+                              <motion.button
+                                key={delta}
+                                className="flex-1 py-1.5 bg-bg-secondary border-none rounded-full text-[13px] font-medium text-text-secondary cursor-pointer hover:bg-bg-tertiary transition-colors"
+                                onClick={() => { setQtyDraft(null); handleUpdateQuantity(expandedIndex, item.quantity_g + delta); }}
+                                whileTap={{ scale: 0.95 }}
+                              >
+                                {delta > 0 ? '+' : '−'}{Math.abs(delta)}{unitLabel}
+                              </motion.button>
+                            ))}
+                          </div>
+                          {qtyWarning && (
+                            <div className="text-[12px] text-orange-500 mt-2">{qtyWarning.message}</div>
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })()}
+                </AnimatePresence>
+
+                <div className="h-px bg-bg-tertiary mt-1" />
+                <div className="flex justify-between items-center py-2.5">
                   <span className="text-[13px] font-medium text-text-secondary">Total</span>
                   <div>
                     <span className="text-[16px] font-semibold">
