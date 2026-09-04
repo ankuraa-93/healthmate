@@ -14,13 +14,13 @@ function EditFoodThumbnail({ imageUrl, name }: { imageUrl?: string | null; name:
       <img
         src={imageUrl}
         alt={name}
-        className="w-11 h-11 rounded-[10px] flex-shrink-0 object-cover"
+        className="w-16 h-16 rounded-xl flex-shrink-0 object-cover"
         onError={() => setFailed(true)}
       />
     );
   }
   return (
-    <div className="w-11 h-11 rounded-[10px] flex-shrink-0 bg-bg-tertiary flex items-center justify-center text-lg">
+    <div className="w-16 h-16 rounded-xl flex-shrink-0 bg-bg-tertiary flex items-center justify-center text-2xl">
       {name.slice(0, 1).toUpperCase()}
     </div>
   );

@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft } from 'lucide-react';
 import CalorieRing from '@/components/CalorieRing';
 import MacroGrid from '@/components/MacroGrid';
-import FoodCard from '@/components/FoodCard';
+import FoodCardHorizontal from '@/components/FoodCardHorizontal';
 import WeekStrip from '@/components/WeekStrip';
 import { ViewableConnection, SharedLogData, SharedLogEntry, FoodLogEntry } from '@/lib/types';
 
@@ -199,15 +199,19 @@ function SharedLogContent({ connection, onClose }: { connection: ViewableConnect
                 No food logged on this day
               </div>
             ) : (
-              MEAL_ORDER.map(type => {
+              (() => {
+                let isFirst = true;
+                return MEAL_ORDER.map(type => {
                 const mealEntries = entries.filter(e => e.meal_type === type);
                 if (mealEntries.length === 0) return null;
                 const mealCalories = mealEntries.reduce((sum, e) => sum + (e.calories ?? 0), 0);
+                const first = isFirst;
+                isFirst = false;
 
                 return (
                   <div key={type} className="mb-1">
                     <div className="overflow-hidden">
-                      <div className="h-px bg-bg-tertiary" />
+                      {!first && <div className="h-px bg-bg-tertiary mx-5" />}
                       <div className="px-5 pt-2.5 pb-1">
                         <span className="text-[12px] font-medium text-text-tertiary uppercase tracking-wide">
                           {MEAL_LABELS[type]}
@@ -218,17 +222,20 @@ function SharedLogContent({ connection, onClose }: { connection: ViewableConnect
                           </span>
                         )}
                       </div>
-                      {mealEntries.map((entry, i) => (
-                        <FoodCard
-                          key={entry.id}
-                          entry={toFoodLogEntry(entry)}
-                          index={i}
-                        />
-                      ))}
+                      <div className="grid grid-cols-3 gap-x-5 gap-y-5 px-5 pb-3">
+                        {mealEntries.map((entry, i) => (
+                          <FoodCardHorizontal
+                            key={entry.id}
+                            entry={toFoodLogEntry(entry)}
+                            index={i}
+                          />
+                        ))}
+                      </div>
                     </div>
                   </div>
                 );
-              })
+              });
+              })()
             )}
           </div>
         )}

@@ -259,6 +259,18 @@ export async function POST(req: NextRequest) {
       image_url: item.image_url ?? null,
     }));
 
+    // Fire-and-forget icon generation for foods without icons
+    const baseUrl = new URL(req.url).origin;
+    for (const item of sanitizedItems) {
+      if (item.matched_library_id && !item.image_url) {
+        fetch(`${baseUrl}/api/generate-icon`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ food_library_id: item.matched_library_id }),
+        }).catch(err => console.error('generate-icon trigger failed:', err));
+      }
+    }
+
     return NextResponse.json({ items: sanitizedItems });
   } catch (error) {
     console.error('match-food error:', error);

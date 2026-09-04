@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { RefreshCw, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import CalorieRing from '@/components/CalorieRing';
 import MacroGrid from '@/components/MacroGrid';
-import FoodCard from '@/components/FoodCard';
+import FoodCardHorizontal from '@/components/FoodCardHorizontal';
 import WeekStrip from '@/components/WeekStrip';
 import { FoodLogEntry } from '@/lib/types';
 import { createClient } from '@/lib/supabase';
@@ -191,6 +191,7 @@ export default function ShareDashboard({ token }: { token: string }) {
   };
 
   let cardIndex = 0;
+  let isFirstMeal = true;
 
   return (
     <div className="absolute inset-0 flex flex-col">
@@ -282,11 +283,13 @@ export default function ShareDashboard({ token }: { token: string }) {
             const entries = logs.filter(l => l.meal_type === type);
             if (entries.length === 0) return null;
             const mealCalories = entries.reduce((sum, e) => sum + (e.calories ?? 0), 0);
+            const first = isFirstMeal;
+            isFirstMeal = false;
 
             return (
               <div key={type} className="mb-1">
                 <div className="overflow-hidden">
-                  <div className="h-px bg-bg-tertiary" />
+                  {!first && <div className="h-px bg-bg-tertiary mx-5" />}
                   <div className="px-5 pt-2.5 pb-1">
                     <span className="text-[12px] font-medium text-text-tertiary uppercase tracking-wide">
                       {mealLabels[type]}
@@ -297,18 +300,18 @@ export default function ShareDashboard({ token }: { token: string }) {
                       </span>
                     )}
                   </div>
-                  <AnimatePresence>
-                    {entries.map((entry, i) => {
+                  <div className="grid grid-cols-3 gap-x-5 gap-y-5 px-5 pb-3">
+                    {entries.map((entry) => {
                       const idx = cardIndex++;
                       return (
-                        <FoodCard
+                        <FoodCardHorizontal
                           key={entry.id}
                           entry={entry}
                           index={idx}
                         />
                       );
                     })}
-                  </AnimatePresence>
+                  </div>
                 </div>
               </div>
             );
