@@ -80,14 +80,17 @@ export async function updateFoodLog(id: string, updates: Partial<Pick<FoodLogEnt
     .from('food_log')
     .update({ ...updates, updated_at: new Date().toISOString() })
     .eq('id', id)
-    .select()
+    .select('*, food_library:food_library_id(image_url)')
     .single();
 
   if (error) {
     console.error('updateFoodLog error:', error);
     return null;
   }
-  return data;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { food_library, ...rest } = data as any;
+  const lib = food_library as { image_url: string | null } | null;
+  return { ...rest, image_url: lib?.image_url ?? null } as FoodLogEntry;
 }
 
 export async function deleteFoodLog(id: string): Promise<boolean> {

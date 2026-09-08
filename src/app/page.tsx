@@ -269,6 +269,37 @@ export default function DashboardPage() {
 
   const isViewingSelf = viewingUserId === null;
 
+  const generatingIconsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!isViewingSelf) return;
+    const missing = logs.filter(l =>
+      l.food_library_id && !l.image_url && !generatingIconsRef.current.has(l.food_library_id!)
+    );
+    if (missing.length === 0) return;
+
+    const seen = new Set<string>();
+    for (const entry of missing) {
+      const libId = entry.food_library_id!;
+      if (seen.has(libId)) continue;
+      seen.add(libId);
+      generatingIconsRef.current.add(libId);
+      fetch('/api/generate-icon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ food_library_id: libId }),
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.ok && data.image_url) {
+            setLogs(prev => prev.map(l =>
+              l.food_library_id === libId ? { ...l, image_url: data.image_url } : l
+            ));
+          }
+        })
+        .catch(err => console.error('Icon generation failed:', err));
+    }
+  }, [logs, isViewingSelf]);
+
   const refreshLogs = useCallback(() => {
     if (!user) return;
     const date = formatDate(selectedDate);
