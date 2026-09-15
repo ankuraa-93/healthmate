@@ -296,7 +296,10 @@ export default function DashboardPage() {
             ));
           }
         })
-        .catch(err => console.error('Icon generation failed:', err));
+        .catch(err => {
+          console.error('Icon generation failed:', err);
+          generatingIconsRef.current.delete(libId);
+        });
     }
   }, [logs, isViewingSelf]);
 

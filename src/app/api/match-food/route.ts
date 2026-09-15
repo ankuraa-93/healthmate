@@ -215,6 +215,8 @@ export async function POST(req: NextRequest) {
         }
 
         const source = unmatchedItems.includes(item) ? 'web_search' : 'llm_estimate';
+        // Omit image_url from the upsert so that on conflict (name already
+        // exists) we don't overwrite an existing icon with null.
         const { data: newFood, error } = await supabase
           .from('food_library')
           .upsert(
@@ -228,7 +230,6 @@ export async function POST(req: NextRequest) {
               serving_size_g: item.quantity_g,
               source,
               unit: item.unit,
-              image_url: item.image_url ?? null,
             },
             { onConflict: 'name' }
           )

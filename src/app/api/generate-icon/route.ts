@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (food.image_url) {
-      return NextResponse.json({ ok: true, skipped: true });
+      return NextResponse.json({ ok: true, skipped: true, image_url: food.image_url });
     }
 
     const res = await fetch(API_URL, {
