@@ -170,27 +170,23 @@ export default function EditFoodSheet({ entry, onClose, onSave, onDelete, onRepl
                 transition={{ delay: 0.1 }}
               >
                 <EditFoodThumbnail imageUrl={entry.image_url} name={entry.food_name} />
-                <div className="flex-1 min-w-0 min-h-[116px] flex flex-col pt-1 pb-1">
-                  <div>
-                    <span className="text-[17px] font-medium leading-snug line-clamp-2">{entry.food_name}</span>
-                    <div className="text-[12px] text-text-secondary mt-1">
-                      {qtyNum}{unitLabel} · {nutrition.calories} cal
+                <div className="flex-1 min-w-0 min-h-[116px] flex flex-col py-0.5">
+                  <span className="text-[14px] font-medium leading-snug line-clamp-2">{entry.food_name}</span>
+                  <div className="text-[11px] text-text-secondary mt-1">
+                    <div>{qtyNum}{unitLabel} · {nutrition.calories} cal</div>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <Drumstick size={11} className="flex-shrink-0" />
+                      <span>Protein {nutrition.protein}g</span>
+                      <span>·</span>
+                      <Wheat size={11} className="flex-shrink-0" />
+                      <span>Carbs {nutrition.carbs}g</span>
                     </div>
-                    <div className="mt-px text-[12px] text-text-secondary">
-                      <div className="flex items-center gap-1">
-                        <Drumstick size={12} className="flex-shrink-0" />
-                        <span>Protein {nutrition.protein}g</span>
-                        <span>·</span>
-                        <Wheat size={12} className="flex-shrink-0" />
-                        <span>Carbs {nutrition.carbs}g</span>
-                      </div>
-                      <div className="flex items-center gap-1 mt-px">
-                        <Droplet size={12} className="flex-shrink-0" />
-                        <span>Fat {nutrition.fat}g</span>
-                        <span>·</span>
-                        <Leaf size={12} className="flex-shrink-0" />
-                        <span>Fibre {nutrition.fibre}g</span>
-                      </div>
+                    <div className="flex items-center gap-1 mt-px">
+                      <Droplet size={11} className="flex-shrink-0" />
+                      <span>Fat {nutrition.fat}g</span>
+                      <span>·</span>
+                      <Leaf size={11} className="flex-shrink-0" />
+                      <span>Fibre {nutrition.fibre}g</span>
                     </div>
                   </div>
                   <button
