@@ -300,7 +300,6 @@ export default function DashboardPage() {
   // Weekly balance strip: maintenance (TDEE) is only known for users who've
   // filled in their body stats; others don't see the strip.
   const maintenanceCalories = estimateFromProfile(profile)?.tdee ?? null;
-  const isCurrentWeek = getWeekDates(selectedDate).includes(formatDate(new Date()));
   // Overlay live totals only for the day `logs` actually belongs to. Right
   // after switching days, `logs` still holds the previous day until its fetch
   // lands; keying by the entries' own date keeps the strip steady meanwhile.
@@ -664,7 +663,6 @@ export default function DashboardPage() {
         <WeeklyBalanceStrip
           weeklyCalories={balanceCalories}
           maintenance={maintenanceCalories}
-          isCurrentWeek={isCurrentWeek}
         />
       </div>
 

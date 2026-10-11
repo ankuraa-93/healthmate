@@ -1299,7 +1299,7 @@ With the switcher gone, Home is the default and Account only needs one entry poi
 - `WeeklyBalanceStrip` sits directly under WeekStrip inside the fixed Home header (so it stays visible while scrolling).
 - x = logged calories − maintenance × (number of days in the selected week that have logs, **excluding today**). Days with no logs are ignored for all three cases; today is left out because it's only partly logged.
 - Maintenance = TDEE from `estimateFromProfile(profile)` (BMR × activity factor). Users without body stats (default goals) get no strip.
-- States: x < −1000 → "🔥 |x| calories deficit this week!" (positive number) (light green / dark green); −1000…0 → "😶 No deficit or surplus this week" (light orange / brown); x > 0 → "😞 x calories surplus this week" (light red / dark red). Numbers in the copy are rounded to the nearest 100, min 100 (thresholds use the exact value). Past weeks say "that week". Text 12px medium.
+- States: x < −1000 → "🔥 |x| calories deficit this week!" (positive number) (light green / dark green); −1000…0 → "😶 No deficit or surplus this week" (light orange / brown); x > 0 → "😞 x calories surplus this week" (light red / dark red). Numbers in the copy are rounded to the nearest 100, min 100 (thresholds use the exact value). Past weeks also say "this week" (the user is viewing a date in that week). Text 12px medium.
 - Animations: strip expands in/out by height; text cross-fades when the state changes.
 - Stays steady when switching days within a week: live totals are overlaid only onto the date the loaded `logs` belong to (`balanceCalories` in page.tsx), so the stale previous-day logs during a date switch don't briefly change the number.
 

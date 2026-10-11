@@ -7,8 +7,6 @@ interface WeeklyBalanceStripProps {
   weeklyCalories: Record<string, number>;
   /** Maintenance calories (TDEE) per day; null hides the strip. */
   maintenance: number | null;
-  /** False when browsing a past week — copy says "that week" instead. */
-  isCurrentWeek: boolean;
 }
 
 const DEFICIT_THRESHOLD = -1000;
@@ -27,7 +25,7 @@ function localDateKey(d: Date): string {
 // Extension of WeekStrip: net calories vs maintenance across the completed
 // days of the week that have logs. Unlogged days are ignored, and so is today
 // (it's only partly logged, which would read as a big deficit every morning).
-export default function WeeklyBalanceStrip({ weeklyCalories, maintenance, isCurrentWeek }: WeeklyBalanceStripProps) {
+export default function WeeklyBalanceStrip({ weeklyCalories, maintenance }: WeeklyBalanceStripProps) {
   const todayKey = localDateKey(new Date());
   const loggedDays = Object.entries(weeklyCalories)
     .filter(([date, c]) => date !== todayKey && c > 0)
@@ -36,7 +34,6 @@ export default function WeeklyBalanceStrip({ weeklyCalories, maintenance, isCurr
 
   const logged = loggedDays.reduce((sum, c) => sum + c, 0);
   const net = show ? Math.round(logged - maintenance * loggedDays.length) : 0;
-  const week = isCurrentWeek ? 'this week' : 'that week';
 
   const kind = net < DEFICIT_THRESHOLD ? 'deficit' : net > SURPLUS_THRESHOLD ? 'surplus' : 'maintenance';
   const emoji = kind === 'deficit' ? '🔥' : kind === 'surplus' ? '😞' : '😶';
@@ -44,9 +41,9 @@ export default function WeeklyBalanceStrip({ weeklyCalories, maintenance, isCurr
   // (min 100, so a small surplus never reads "0 calories surplus").
   const shown = Math.max(100, Math.round(Math.abs(net) / 100) * 100);
   const text =
-    kind === 'deficit' ? `${shown} calories deficit ${week}!`
-    : kind === 'surplus' ? `${shown} calories surplus ${week}`
-    : `No deficit or surplus ${week}`;
+    kind === 'deficit' ? `${shown} calories deficit this week!`
+    : kind === 'surplus' ? `${shown} calories surplus this week`
+    : `No deficit or surplus this week`;
 
   return (
     <AnimatePresence initial={false}>
