@@ -13,6 +13,8 @@ import { ReviewPhoto } from '@/components/PhotoReviewSheet';
 import EditFoodSheet from '@/components/EditFoodSheet';
 import Toast from '@/components/Toast';
 import WeekStrip from '@/components/WeekStrip';
+import WeeklyBalanceStrip from '@/components/WeeklyBalanceStrip';
+import { estimateFromProfile } from '@/lib/goals';
 import GuestWelcome from '@/components/GuestWelcome';
 import OnboardingSheet from '@/components/OnboardingSheet';
 import DefaultGoalsSuggestion from '@/components/DefaultGoalsSuggestion';
@@ -294,6 +296,19 @@ export default function DashboardPage() {
   // Merge live totals for selected day into weekly data
   const mergedWeeklyCalories = { ...weeklyCalories };
   mergedWeeklyCalories[formatDate(selectedDate)] = totals.calories;
+
+  // Weekly balance strip: maintenance (TDEE) is only known for users who've
+  // filled in their body stats; others don't see the strip.
+  const maintenanceCalories = estimateFromProfile(profile)?.tdee ?? null;
+  const isCurrentWeek = getWeekDates(selectedDate).includes(formatDate(new Date()));
+  // Overlay live totals only for the day `logs` actually belongs to. Right
+  // after switching days, `logs` still holds the previous day until its fetch
+  // lands; keying by the entries' own date keeps the strip steady meanwhile.
+  const balanceCalories = { ...weeklyCalories };
+  const liveLogDate = logs[0]?.logged_date;
+  if (liveLogDate && logs.every(l => l.logged_date === liveLogDate)) {
+    balanceCalories[liveLogDate] = totals.calories;
+  }
 
   const showToast = useCallback((message: string, duration = 2000, action?: { label: string; onPress: () => void }) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -645,6 +660,11 @@ export default function DashboardPage() {
           onSelectDate={setSelectedDate}
           weeklyCalories={mergedWeeklyCalories}
           calorieTarget={profile.daily_calorie_goal}
+        />
+        <WeeklyBalanceStrip
+          weeklyCalories={balanceCalories}
+          maintenance={maintenanceCalories}
+          isCurrentWeek={isCurrentWeek}
         />
       </div>
 
