@@ -39,7 +39,7 @@ export default function ActionBar({ isToday, onToday, onShare, onAdd }: ActionBa
         )}
       </AnimatePresence>
 
-      <div className={`pointer-events-auto ml-auto flex items-center gap-1 p-1 ${GLASS_PILL}`}>
+      <div className={`pointer-events-auto ml-auto mr-2 -translate-y-1 flex items-center gap-1 p-1 ${GLASS_PILL}`}>
         <motion.button
           aria-label="Share"
           className="w-14 h-[38px] rounded-full flex items-center justify-center bg-transparent border-none cursor-pointer text-text-primary"

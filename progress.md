@@ -1307,3 +1307,7 @@ With the switcher gone, Home is the default and Account only needs one entry poi
 
 ### Suggested foods: + moved to the left (Oct 11 2026)
 - In `SuggestedFoods` rows the green + now leads the row, before the food name, sized to the 11px text (16px circle, 11px icon), so it no longer lines up under Home's bottom-right Log Food + in the action bar.
+
+### Suggested foods: + now trails the text (Oct 11 2026)
+- The + moved again: it now sits right after the food name + quantity (gap-2), not right-aligned and not leading. Still clear of the bottom-right Log Food button.
+- Home ActionBar: Share/Log food pill nudged 8px left and 4px up (`mr-2 -translate-y-1`) so it sits 24px from both the right and bottom edges; Today pill unchanged.
