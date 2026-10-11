@@ -1239,3 +1239,59 @@ Key change from v1: explicit "PURE WHITE (#FFFFFF)" with "zero grey, cream, or o
 5. **No email notifications for sharing** — non-existing users' connections are stored by email and resolved on signup, but no notification is sent. Consider adding transactional emails or invite link flow.
 6. **Egg quantity inconsistency** — "1 boiled egg" logs different weights each time. Needs parser prompt fix.
 7. **Egg white vs boiled egg** — Gemini consistently misidentifies boiled egg white as boiled egg from images.
+
+## Sep 8 2026 — Bug fixes (commit 2e1e200)
+
+1. **Icon disappears on quantity edit** — `updateFoodLog()` wasn't joining `food_library`, so the returned row lost `image_url`. Fixed by adding the join (same pattern as `fetchFoodLogs`).
+2. **Client-side icon generation** — Added `useEffect` in dashboard that detects log entries with `food_library_id` but no `image_url`, triggers `/api/generate-icon`, and updates the UI live. Works alongside the existing server-side fire-and-forget in `match-food`.
+3. **Expand panel positioning in Log Food tray** — The quantity editor appeared below the entire grid regardless of which item was clicked. Restructured to render items row-by-row (3 per row), with the expand panel inserted after the correct row.
+
+## Sep 15 2026 — Bug fix: duplicate food icon missing (commit 9047114)
+
+**Bug:** Logging the same food (e.g. "homemade sambhar") for two different meals on the same day caused one entry to show its food icon and the other to show the letter fallback.
+
+**Root cause:** Three issues working together:
+1. **match-food upsert erased icons** — When the LLM matcher didn't match a food to its existing library entry, the unmatched path upserted into `food_library` with `image_url: null`, overwriting any icon that had already been generated.
+2. **generate-icon "skipped" response missing URL** — When the icon already existed and generation was skipped, the response didn't include `image_url`, so the client-side useEffect couldn't update the display.
+3. **Failed icon generation blocked retries** — If the generate-icon fetch failed, the `generatingIconsRef` Set still held the library ID, preventing future retry attempts.
+
+**Fixes:**
+- Removed `image_url` from the food_library upsert data so existing icons are preserved on name conflict
+- Added `image_url` to generate-icon's "skipped" response
+- Clear the library ID from the tracking set on generation failure to allow retries
+
+## Sep 15 2026 — Edit food overlay layout (commit 3c70bdb)
+
+Tightened the edit food overlay header for long food names:
+- Food name: 17px → 14px
+- Cal + macro values: 12px → 11px, icons 12px → 11px
+- Cal + macros placed directly below the food name (not vertically centered)
+- Delete button anchored at bottom of the 116px image height via `mt-auto`
+
+## Oct 11 2026 — Liquid glass floating nav bar
+
+- `BottomNav` is now a floating translucent pill (`absolute left-4 right-4`, `bg-white/35 backdrop-blur-md backdrop-saturate-[1.8]` — 65% white read as opaque over the white page, white border + inner highlight, soft drop shadow) instead of a solid bar pinned to the bottom edge. Content scrolls beneath it.
+- Active tab gets a subtle capsule highlight that springs between tabs (Framer Motion `layoutId`).
+- **Layout modelled on iOS 26 Calendar** (user-supplied reference):
+  - Top-right of Home header: action pill (`HomeHeader`, `bg-bg-secondary rounded-full`) with Share icon + green + (Log Food).
+  - Bottom-left: glass **"Today"** pill (Home only, via `BottomNav onToday`) → `setSelectedDate(new Date())`.
+  - Bottom-right: glass icon-only tab pill (Home, Account; 64×38 tabs, `p-1`, no labels). Both bottom pills are 48px tall; Today text flex-centred with `leading-none`.
+  - `FAB.tsx` deleted. Iterated: + inside nav pill → separate glass circle → header pill. Share kept out of the nav since it's Home-specific and pairs with the "You ▾" switcher.
+- Scroll areas on Home/Account now pad `env(safe-area-inset-bottom) + 88px` so the last row clears the pill.
+
+### Removed: switch user / in-app log sharing (Oct 11 2026)
+User decision: the trainer use case (log own food + monitor clients' logs) isn't strong enough.
+- Removed the user switcher (`UserSwitcherSheet`) and all "viewing someone else" state/rendering from Home (`viewingUserId`, shared log fetch, shared photo tray + viewer, read-only meal list).
+- `ShareAvatarRow.tsx` → renamed `HomeHeader.tsx`, now just month/year + Share/+ pill. Pending-request red dot removed.
+- ShareSheet: removed "Share log on Calorrific" (user search, invite, "Shared with" list) and incoming "Pending requests". Kept: Share as image, Copy link, Share link (public `/share/[token]` view), and the "Before you share" profile setup.
+- **Left dormant (not deleted):** `share_connections` table + rows, `/api/share-connections/*` routes, connection helpers in `supabase-data.ts`, connection types, unused `SharedLogSheet.tsx`. Existing connections (e.g. viewers of your log) simply have no UI anymore. Clean up later if the decision sticks.
+
+
+### Bottom nav removed → header + action bar (Oct 11 2026)
+With the switcher gone, Home is the default and Account only needs one entry point, so the tab bar was dropped.
+- **Home header** (`HomeHeader`, 40px row): left = `October 2026` (19px medium, grey, default letter spacing), left edge flush with Monday's ring; right = 32px DP only (tap → `/settings`), centred over Sunday. Both via width-based margins. No gap below header.
+- **Glass `ActionBar`** (bottom of Home): **Today** pill bottom-left (48px, semibold; hidden when today is selected, bubble-pops in with a springy overshoot when you move to another day and pops out — slight swell then shrink — when you return) and Share + green + icon pill bottom-right. Glass bumped to `bg-white/60` (35% read too see-through). Sits `max(20px, safe-area + 8px)` from the bottom; Home content pads safe-area + 96px. (Tried Today in the header top-right — looked off, moved back.)
+- **Account**: "‹ Home" back link sits in the top padding above the "Account" heading (heading line unchanged). Bottom padding back to safe-area/32px.
+- `BottomNav.tsx` deleted; History page (not linked anywhere) also lost its nav.
+
+- Next: weekly summary strip peeking from the top of the nav ("On track to lose x kg this week") — scenarios pending from user.

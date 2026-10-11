@@ -1,14 +1,13 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect, TouchEvent } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { RefreshCw, X, Trash2, AlertCircle, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
-import BottomNav from '@/components/BottomNav';
+import ActionBar from '@/components/ActionBar';
 import CalorieRing from '@/components/CalorieRing';
 import MacroGrid from '@/components/MacroGrid';
-import FoodCard from '@/components/FoodCard';
 import FoodCardHorizontal from '@/components/FoodCardHorizontal';
-import FAB from '@/components/FAB';
 import AddFoodSheet from '@/components/AddFoodSheet';
 import { ReviewPhoto } from '@/components/PhotoReviewSheet';
 import EditFoodSheet from '@/components/EditFoodSheet';
@@ -19,11 +18,11 @@ import OnboardingSheet from '@/components/OnboardingSheet';
 import DefaultGoalsSuggestion from '@/components/DefaultGoalsSuggestion';
 import { useAuth } from '@/components/AuthProvider';
 import { DEMO_USER_ID } from '@/lib/demo';
-import { fetchFoodLogs, fetchProfile, updateFoodLog, deleteFoodLog, insertFoodLog, fetchSuggestions, fetchWeeklyCalories, SuggestedFood, insertProcessingJob, deleteProcessingJob, updateProcessingJob, fetchProcessingJobs, uploadFoodPhoto, fetchSourceImages, SourceImage, fetchViewableConnections, fetchPendingRequests, resolveShareConnections } from '@/lib/supabase-data';
+import { fetchFoodLogs, fetchProfile, updateFoodLog, deleteFoodLog, insertFoodLog, fetchSuggestions, fetchWeeklyCalories, SuggestedFood, insertProcessingJob, deleteProcessingJob, updateProcessingJob, fetchProcessingJobs, uploadFoodPhoto, fetchSourceImages, SourceImage } from '@/lib/supabase-data';
 import SuggestedFoods from '@/components/SuggestedFoods';
-import ShareAvatarRow, { UserSwitcherSheet } from '@/components/ShareAvatarRow';
+import HomeHeader from '@/components/HomeHeader';
 import ShareSheet from '@/components/ShareSheet';
-import { FoodLogEntry, Profile, ProcessingJob, ViewableConnection, PendingRequest, SharedLogData } from '@/lib/types';
+import { FoodLogEntry, Profile, ProcessingJob } from '@/lib/types';
 import { applyRotation, ProcessedImage } from '@/lib/image-utils';
 import { scaleNutritionFromEntry } from '@/lib/nutrition';
 
@@ -97,6 +96,7 @@ export default function DashboardPage() {
   // ('') while editing instead of snapping back to a digit. null = not editing.
   const [photoQtyDraft, setPhotoQtyDraft] = useState<string | null>(null);
   const [expandedJob, setExpandedJob] = useState<ProcessingJob | null>(null);
+  const router = useRouter();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<FoodLogEntry | null>(null);
   // Replace-food flow: the entry being replaced + where to return when done.
@@ -110,13 +110,7 @@ export default function DashboardPage() {
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [weeklyCalories, setWeeklyCalories] = useState<Record<string, number>>({});
-  const [shareConnections, setShareConnections] = useState<ViewableConnection[]>([]);
-  const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [shareSheetOpen, setShareSheetOpen] = useState(false);
-  const [switcherOpen, setSwitcherOpen] = useState(false);
-  const [viewingUserId, setViewingUserId] = useState<string | null>(null);
-  const [sharedLogData, setSharedLogData] = useState<SharedLogData | null>(null);
-  const [expandedSharedPhoto, setExpandedSharedPhoto] = useState<{ url: string; mealType: string; foodIds: string[] } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const touchStartY = useRef(0);
@@ -202,10 +196,6 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!user) return;
     fetchProfile(user.id).then(p => { if (p) setProfile(p); setProfileLoaded(true); });
-    resolveShareConnections().then(() => {
-      fetchViewableConnections().then(setShareConnections);
-      fetchPendingRequests().then(setPendingRequests);
-    });
   }, [user]);
 
   const [showOnboarding, setShowOnboarding] = useState(() => {
@@ -244,34 +234,8 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [processingJobs]);
 
-  const [sharedFetchKey, setSharedFetchKey] = useState('');
-  const sharedExpectedKey = viewingUserId ? `${viewingUserId}:${formatDate(selectedDate)}` : '';
-  const sharedLogLoading = viewingUserId !== null && sharedFetchKey !== sharedExpectedKey;
-
-  useEffect(() => {
-    if (!viewingUserId) return;
-    let cancelled = false;
-    const key = `${viewingUserId}:${formatDate(selectedDate)}`;
-    fetch(`/api/share-connections/log?ownerId=${viewingUserId}&date=${formatDate(selectedDate)}`)
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (cancelled) return;
-        setSharedLogData(data);
-        setSharedFetchKey(key);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setSharedLogData(null);
-        setSharedFetchKey(key);
-      });
-    return () => { cancelled = true; };
-  }, [viewingUserId, selectedDate]);
-
-  const isViewingSelf = viewingUserId === null;
-
   const generatingIconsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (!isViewingSelf) return;
     const missing = logs.filter(l =>
       l.food_library_id && !l.image_url && !generatingIconsRef.current.has(l.food_library_id!)
     );
@@ -301,7 +265,7 @@ export default function DashboardPage() {
           generatingIconsRef.current.delete(libId);
         });
     }
-  }, [logs, isViewingSelf]);
+  }, [logs]);
 
   const refreshLogs = useCallback(() => {
     if (!user) return;
@@ -312,11 +276,6 @@ export default function DashboardPage() {
     fetchProcessingJobs(user.id, date).then(setProcessingJobs);
     fetchSourceImages(user.id, date).then(setSourceImages);
   }, [user, selectedDate]);
-
-  const refreshShareConnections = useCallback(() => {
-    fetchViewableConnections().then(setShareConnections);
-    fetchPendingRequests().then(setPendingRequests);
-  }, []);
 
   const totals = logs.reduce(
     (acc, log) => {
@@ -335,31 +294,6 @@ export default function DashboardPage() {
   // Merge live totals for selected day into weekly data
   const mergedWeeklyCalories = { ...weeklyCalories };
   mergedWeeklyCalories[formatDate(selectedDate)] = totals.calories;
-
-  // When viewing someone else, compute their display data
-  const sharedEntries = sharedLogData?.entries ?? [];
-  const sharedTotals = sharedEntries.reduce(
-    (acc, e) => ({
-      calories: acc.calories + (e.calories ?? 0),
-      protein: acc.protein + (e.protein ?? 0),
-      carbs: acc.carbs + (e.carbs ?? 0),
-      fat: acc.fat + (e.fat ?? 0),
-      fibre: acc.fibre + (e.fibre ?? 0),
-    }),
-    { calories: 0, protein: 0, carbs: 0, fat: 0, fibre: 0 },
-  );
-  const sharedWeekly = { ...(sharedLogData?.weekly_calories ?? {}), [formatDate(selectedDate)]: sharedTotals.calories };
-
-  const displayTotals = isViewingSelf ? totals : sharedTotals;
-  const displayWeekly = isViewingSelf ? mergedWeeklyCalories : sharedWeekly;
-  const displayProfile = isViewingSelf ? profile : {
-    ...profile,
-    daily_calorie_goal: sharedLogData?.daily_calorie_goal ?? 2000,
-    daily_protein_goal: sharedLogData?.daily_protein_goal ?? 120,
-    daily_carbs_goal: sharedLogData?.daily_carbs_goal ?? 250,
-    daily_fat_goal: sharedLogData?.daily_fat_goal ?? 65,
-    daily_fibre_goal: sharedLogData?.daily_fibre_goal ?? 30,
-  };
 
   const showToast = useCallback((message: string, duration = 2000, action?: { label: string; onPress: () => void }) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -697,25 +631,20 @@ export default function DashboardPage() {
 
   return (
     <div className="absolute inset-0 flex flex-col">
-      {/* Header: avatar pill + week strip */}
+      {/* Header: profile · month, week strip */}
       <div className="flex-shrink-0 pt-[max(env(safe-area-inset-top),12px)] bg-bg-primary z-10 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
-        <ShareAvatarRow
-          connections={shareConnections}
-          selectedId={viewingUserId}
-          selfAvatarUrl={profile.avatar_url}
-          selfDisplayName={profile.display_name}
-          selfEmail={user?.email ?? null}
+        <HomeHeader
           selectedDate={selectedDate}
-          onSwitcherOpen={() => setSwitcherOpen(true)}
-          onSharePress={() => setShareSheetOpen(true)}
-          isViewingSelf={isViewingSelf}
-          pendingCount={pendingRequests.length}
+          avatarUrl={profile.avatar_url}
+          displayName={profile.display_name}
+          email={user?.email ?? null}
+          onProfilePress={() => router.push('/settings')}
         />
         <WeekStrip
           selectedDate={selectedDate}
           onSelectDate={setSelectedDate}
-          weeklyCalories={displayWeekly}
-          calorieTarget={displayProfile.daily_calorie_goal}
+          weeklyCalories={mergedWeeklyCalories}
+          calorieTarget={profile.daily_calorie_goal}
         />
       </div>
 
@@ -748,27 +677,27 @@ export default function DashboardPage() {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.1 }}
         >
-          <CalorieRing consumed={displayTotals.calories} target={displayProfile.daily_calorie_goal} />
+          <CalorieRing consumed={totals.calories} target={profile.daily_calorie_goal} />
           <MacroGrid
-            protein={displayTotals.protein}
-            proteinTarget={displayProfile.daily_protein_goal}
-            carbs={displayTotals.carbs}
-            carbsTarget={displayProfile.daily_carbs_goal}
-            fat={displayTotals.fat}
-            fatTarget={displayProfile.daily_fat_goal}
-            fibre={displayTotals.fibre}
-            fibreTarget={displayProfile.daily_fibre_goal}
-            calorieRatio={displayTotals.calories / displayProfile.daily_calorie_goal}
+            protein={totals.protein}
+            proteinTarget={profile.daily_protein_goal}
+            carbs={totals.carbs}
+            carbsTarget={profile.daily_carbs_goal}
+            fat={totals.fat}
+            fatTarget={profile.daily_fat_goal}
+            fibre={totals.fibre}
+            fibreTarget={profile.daily_fibre_goal}
+            calorieRatio={totals.calories / profile.daily_calorie_goal}
           />
         </motion.div>
 
         {/* Personalise-goals nudge — only while on defaults */}
-        {isViewingSelf && profileLoaded && (profile.goals_mode ?? 'default') === 'default' && (
+        {profileLoaded && (profile.goals_mode ?? 'default') === 'default' && (
           <DefaultGoalsSuggestion href="/onboarding?mode=personalize" className="bg-[#FFF4E6] rounded-xl px-3.5 py-3 mb-4" />
         )}
 
         {/* Photo tray */}
-        {isViewingSelf && (sourceImages.length > 0 || processingJobs.length > 0) && (
+        {(sourceImages.length > 0 || processingJobs.length > 0) && (
           <div className="mb-3 -mr-4">
             <div className="flex gap-2.5 overflow-x-auto scrollbar-none pt-2 pb-1 pr-4">
               {[...sourceImages].sort((a, b) =>
@@ -842,106 +771,12 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Shared photo tray (clickable, read-only) */}
-        {!isViewingSelf && (() => {
-          const photoMap = new Map<string, { url: string; mealType: string; foodIds: string[] }>();
-          for (const e of sharedEntries) {
-            if (e.input_source !== 'image' || !e.image_url) continue;
-            const existing = photoMap.get(e.image_url);
-            if (existing) { existing.foodIds.push(e.id); }
-            else { photoMap.set(e.image_url, { url: e.image_url, mealType: e.meal_type, foodIds: [e.id] }); }
-          }
-          const sharedPhotos = [...photoMap.values()].sort(
-            (a, b) => MEAL_ORDER.indexOf(a.mealType) - MEAL_ORDER.indexOf(b.mealType)
-          );
-          if (sharedPhotos.length === 0) return null;
-          return (
-            <div className="mb-3 -mr-4">
-              <div className="flex gap-2.5 overflow-x-auto scrollbar-none pt-2 pb-1 pr-4">
-                {sharedPhotos.map((img, idx) => (
-                  <motion.button
-                    key={img.url}
-                    className="flex-shrink-0 border-none p-0 cursor-pointer bg-transparent flex flex-col items-center gap-1"
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: idx * 0.05 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => setExpandedSharedPhoto(img)}
-                  >
-                    <div className="w-28 h-28 rounded-xl overflow-hidden">
-                      <img src={img.url} alt="Food photo" className="w-full h-full object-cover" />
-                    </div>
-                    <span className="text-[11px] font-medium text-text-tertiary capitalize">{img.mealType}</span>
-                  </motion.button>
-                ))}
-              </div>
-            </div>
-          );
-        })()}
       </div>
 
       <div className="h-px bg-bg-tertiary" />
 
-      <div className="pb-24">
-        {!isViewingSelf && (
-          (() => {
-            const mealOrder = ['breakfast', 'lunch', 'snack', 'dinner'] as const;
-            const mealLabels: Record<string, string> = { breakfast: 'Breakfast', lunch: 'Lunch', snack: 'Snack', dinner: 'Dinner' };
-
-            if (sharedLogLoading) return (
-              <div className="flex items-center justify-center py-10">
-                <div className="w-6 h-6 border-2 border-bg-tertiary border-t-accent rounded-full animate-spin" />
-              </div>
-            );
-
-            if (sharedEntries.length === 0) return (
-              <div className="text-center py-10 text-text-tertiary text-[14px]">
-                No food logged on this day
-              </div>
-            );
-
-            let isFirstSharedMeal = true;
-            return mealOrder.map(type => {
-              const entries = sharedEntries.filter(e => e.meal_type === type);
-              if (entries.length === 0) return null;
-              const firstShared = isFirstSharedMeal;
-              isFirstSharedMeal = false;
-              const mealCal = entries.reduce((s, e) => s + (e.calories ?? 0), 0);
-              return (
-                <div key={type} className="mb-1">
-                  <div className="overflow-hidden">
-                    {!firstShared && <div className="h-px bg-bg-tertiary mx-5" />}
-                    <div className="px-5 pt-2.5 pb-1">
-                      <span className="text-[12px] font-medium text-text-tertiary uppercase tracking-wide">{mealLabels[type]}</span>
-                      {mealCal > 0 && <span className="text-[12px] font-medium text-text-tertiary"> &middot; {mealCal} cal</span>}
-                    </div>
-                    {entries.map((entry, i) => (
-                      <FoodCard
-                        key={entry.id}
-                        entry={{
-                          id: entry.id, user_id: '', food_library_id: null,
-                          food_name: entry.food_name, quantity_g: entry.quantity_g,
-                          calories: entry.calories, protein: entry.protein,
-                          carbs: entry.carbs, fat: entry.fat, fibre: entry.fibre,
-                          meal_type: entry.meal_type as FoodLogEntry['meal_type'],
-                          logged_date: '', status: 'confirmed',
-                          unit: (entry.unit || 'g') as 'g' | 'ml',
-                          input_source: (entry.input_source || 'text') as 'text' | 'voice' | 'image',
-                          source_image_url: null,
-                          image_url: entry.input_source === 'image' ? null : entry.image_url,
-                          created_at: '', updated_at: '',
-                        }}
-                        index={i}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            });
-          })()
-        )}
-
-        {isViewingSelf && (() => {
+      <div className="pb-[calc(env(safe-area-inset-bottom)+96px)]">
+        {(() => {
           const mealOrder = ['breakfast', 'lunch', 'snack', 'dinner'] as const;
           const mealLabels: Record<string, string> = {
             breakfast: 'Breakfast',
@@ -1074,9 +909,12 @@ export default function DashboardPage() {
       </div>
       </div>
 
-      <BottomNav />
-
-      {isViewingSelf && <FAB onClick={() => !editingEntry && setSheetOpen(true)} />}
+      <ActionBar
+        isToday={selectedDate.toDateString() === new Date().toDateString()}
+        onToday={() => setSelectedDate(new Date())}
+        onShare={() => setShareSheetOpen(true)}
+        onAdd={() => !editingEntry && setSheetOpen(true)}
+      />
 
       <AddFoodSheet
         open={sheetOpen || !!replaceTarget}
@@ -1316,120 +1154,6 @@ export default function DashboardPage() {
         )}
       </AnimatePresence>
 
-      {/* Shared photo detail view (read-only, matches share link experience) */}
-      <AnimatePresence>
-        {expandedSharedPhoto && (() => {
-          const photoMap = new Map<string, { url: string; mealType: string; foodIds: string[] }>();
-          for (const e of sharedEntries) {
-            if (e.input_source !== 'image' || !e.image_url) continue;
-            const existing = photoMap.get(e.image_url);
-            if (existing) { existing.foodIds.push(e.id); }
-            else { photoMap.set(e.image_url, { url: e.image_url, mealType: e.meal_type, foodIds: [e.id] }); }
-          }
-          const allPhotos = [...photoMap.values()].sort(
-            (a, b) => MEAL_ORDER.indexOf(a.mealType) - MEAL_ORDER.indexOf(b.mealType)
-          );
-          const idx = allPhotos.findIndex(p => p.url === expandedSharedPhoto.url);
-          const hasPrev = idx > 0;
-          const hasNext = idx >= 0 && idx < allPhotos.length - 1;
-          const go = (delta: number) => {
-            const next = allPhotos[idx + delta];
-            if (next) setExpandedSharedPhoto(next);
-          };
-          return (
-            <motion.div
-              className="absolute inset-0 bg-black z-50 flex flex-col"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <div className="flex items-center justify-between px-4 pt-[max(env(safe-area-inset-top),12px)] pb-2">
-                <motion.button
-                  className="w-9 h-9 rounded-full bg-white/15 border-none flex items-center justify-center cursor-pointer"
-                  onClick={() => setExpandedSharedPhoto(null)}
-                  whileTap={{ scale: 0.9 }}
-                >
-                  <X size={18} className="text-white" />
-                </motion.button>
-                <span className="text-white/70 text-[14px] font-medium capitalize">{expandedSharedPhoto.mealType}</span>
-                <span className="w-9" />
-              </div>
-
-              <div className="px-4 pb-3">
-                <div className="relative">
-                  <motion.img
-                    key={expandedSharedPhoto.url}
-                    src={expandedSharedPhoto.url}
-                    alt="Food photo"
-                    className="w-full rounded-xl object-contain max-h-[52vh] select-none"
-                    draggable={false}
-                    drag={allPhotos.length > 1 ? 'x' : false}
-                    dragConstraints={{ left: 0, right: 0 }}
-                    dragElastic={0.15}
-                    onDragEnd={(_, info) => {
-                      if (info.offset.x < -60 && hasNext) go(1);
-                      else if (info.offset.x > 60 && hasPrev) go(-1);
-                    }}
-                    initial={{ scale: 0.95, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                  />
-                  {hasPrev && (
-                    <motion.button
-                      className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 border-none flex items-center justify-center cursor-pointer"
-                      onClick={() => go(-1)}
-                      whileTap={{ scale: 0.9 }}
-                    >
-                      <ChevronLeft size={20} className="text-white" />
-                    </motion.button>
-                  )}
-                  {hasNext && (
-                    <motion.button
-                      className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 border-none flex items-center justify-center cursor-pointer"
-                      onClick={() => go(1)}
-                      whileTap={{ scale: 0.9 }}
-                    >
-                      <ChevronRight size={20} className="text-white" />
-                    </motion.button>
-                  )}
-                </div>
-                {allPhotos.length > 1 && (
-                  <div className="flex justify-center gap-1.5 mt-2.5">
-                    {allPhotos.map((p, i) => (
-                      <div key={p.url} className={`h-1.5 rounded-full transition-all ${i === idx ? 'w-4 bg-white' : 'w-1.5 bg-white/30'}`} />
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex-1 overflow-y-auto px-4 pb-[max(env(safe-area-inset-bottom),16px)]">
-                <div className="text-white/50 text-[12px] font-medium uppercase tracking-wide mb-2">
-                  Identified foods ({expandedSharedPhoto.foodIds.length})
-                </div>
-                <div className="rounded-xl overflow-hidden" style={{ backgroundColor: '#1c1c1e' }}>
-                  {expandedSharedPhoto.foodIds.map((foodId, fi) => {
-                    const entry = sharedEntries.find(e => e.id === foodId);
-                    if (!entry) return null;
-                    const unitLabel = entry.unit === 'ml' ? 'ml' : 'g';
-                    return (
-                      <div key={foodId}>
-                        {fi > 0 && <div className="h-px bg-white/10 mx-3.5" />}
-                        <div className="p-3 px-3.5">
-                          <div className="text-[14px] font-medium text-white leading-snug">{entry.food_name}</div>
-                          <div className="flex items-baseline justify-between gap-2 mt-px text-[13px] text-white/50">
-                            <span>{entry.quantity_g}{unitLabel} &middot; {entry.calories} cal</span>
-                            <span>P:{entry.protein} C:{entry.carbs} F:{entry.fat} Fi:{entry.fibre}</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </motion.div>
-          );
-        })()}
-      </AnimatePresence>
-
       {/* Processing photo detail view */}
       <AnimatePresence>
         {expandedJob && (
@@ -1558,9 +1282,7 @@ export default function DashboardPage() {
       <ShareSheet
         open={shareSheetOpen}
         onClose={() => setShareSheetOpen(false)}
-        pendingRequests={pendingRequests}
         onToast={msg => showToast(msg)}
-        onRefresh={refreshShareConnections}
         userId={user?.id ?? ''}
         logDate={formatDate(selectedDate)}
         selfDisplayName={profile.display_name}
@@ -1571,19 +1293,6 @@ export default function DashboardPage() {
         totals={totals}
         profile={profile}
         selectedDate={selectedDate}
-      />
-
-      <UserSwitcherSheet
-        open={switcherOpen}
-        onClose={() => setSwitcherOpen(false)}
-        connections={shareConnections}
-        selectedId={viewingUserId}
-        onSelect={setViewingUserId}
-        selfAvatarUrl={profile.avatar_url}
-        selfDisplayName={profile.display_name}
-        selfEmail={user?.email ?? null}
-        onRemoved={refreshShareConnections}
-        onToast={msg => showToast(msg)}
       />
 
     </div>

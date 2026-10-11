@@ -3,9 +3,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import BottomNav from '@/components/BottomNav';
 import FoodCard from '@/components/FoodCard';
-import FAB from '@/components/FAB';
 import AddFoodSheet from '@/components/AddFoodSheet';
 import Toast from '@/components/Toast';
 import { useAuth } from '@/components/AuthProvider';
@@ -126,8 +124,6 @@ export default function HistoryPage() {
         )}
       </div>
 
-      <FAB onClick={() => setSheetOpen(true)} />
-      <BottomNav />
 
       <AddFoodSheet
         open={sheetOpen}

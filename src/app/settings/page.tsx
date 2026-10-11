@@ -3,8 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UserRound, Target, LogOut, ChevronRight, Camera, X } from 'lucide-react';
-import BottomNav from '@/components/BottomNav';
+import { UserRound, Target, LogOut, ChevronRight, ChevronLeft, Camera, X } from 'lucide-react';
 import DefaultGoalsSuggestion from '@/components/DefaultGoalsSuggestion';
 import PersonalizedGoalsSheet from '@/components/PersonalizedGoalsSheet';
 import Toast from '@/components/Toast';
@@ -179,13 +178,21 @@ export default function SettingsPage() {
 
   return (
     <div className="absolute inset-0 flex flex-col">
-      <div className="flex-1 overflow-y-auto scrollbar-none px-4 pb-8">
+      <div className="flex-1 overflow-y-auto scrollbar-none px-4 pb-[max(env(safe-area-inset-bottom),32px)]">
         {/* Header */}
         <motion.div
-          className="pt-14 mb-6"
+          className="relative pt-14 mb-6"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
         >
+          {/* Back sits in the top padding so the heading stays on the shared top line */}
+          <button
+            onClick={() => router.push('/')}
+            className="absolute top-[max(env(safe-area-inset-top),14px)] -left-1.5 flex items-center gap-0.5 bg-transparent border-none p-0 cursor-pointer text-accent text-[15px] font-medium"
+          >
+            <ChevronLeft size={22} />
+            Home
+          </button>
           <span className="text-[22px] font-medium">Account</span>
         </motion.div>
 
@@ -337,8 +344,6 @@ export default function SettingsPage() {
           </button>
         </motion.div>
       </div>
-
-      <BottomNav />
 
       <Toast message={toast.message} visible={toast.visible} />
 

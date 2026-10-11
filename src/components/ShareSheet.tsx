@@ -1,19 +1,17 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Send, UserPlus, Check, XIcon, Link2, Share2, Camera, Image as ImageIcon } from 'lucide-react';
+import { X, Link2, Share2, Camera, Image as ImageIcon } from 'lucide-react';
 import { toPng } from 'html-to-image';
-import { PendingRequest, ManagedConnection, FoodLogEntry, DailyTotals, Profile } from '@/lib/types';
-import { createShareConnection, updateConnectionStatus, getOrCreateShareLink, fetchAllMyConnections, uploadAvatar, updateProfile } from '@/lib/supabase-data';
+import { FoodLogEntry, DailyTotals, Profile } from '@/lib/types';
+import { getOrCreateShareLink, uploadAvatar, updateProfile } from '@/lib/supabase-data';
 import ShareImageCard from './ShareImageCard';
 
 interface ShareSheetProps {
   open: boolean;
   onClose: () => void;
-  pendingRequests: PendingRequest[];
   onToast: (message: string) => void;
-  onRefresh: () => void;
   userId: string;
   logDate: string;
   selfDisplayName: string | null;
@@ -26,21 +24,6 @@ interface ShareSheetProps {
   selectedDate: Date;
 }
 
-interface SearchResult {
-  id: string;
-  email: string | null;
-  display_name: string | null;
-  avatar_url: string | null;
-  share_status: 'accepted' | 'pending' | null;
-  request_status: 'accepted' | 'pending' | null;
-}
-
-function getInitial(name?: string | null, email?: string | null): string {
-  if (name) return name.trim()[0].toUpperCase();
-  if (email) return email[0].toUpperCase();
-  return '?';
-}
-
 function buildShareTitle(name: string | null, email: string | null, date: Date): string {
   const firstName = name?.trim().split(/\s+/)[0] || email?.split('@')[0] || 'My food log';
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -49,210 +32,6 @@ function buildShareTitle(name: string | null, email: string | null, date: Date):
   const dd = date.getDate();
   const dow = days[date.getDay()];
   return `${firstName} - ${mon} ${dd}, ${dow}`;
-}
-
-function getDisplayLabel(r: SearchResult): string {
-  if (r.display_name && r.email) return `${r.display_name} (${r.email})`;
-  return r.email || r.display_name || '?';
-}
-
-function SearchDropdown({
-  results,
-  onSelect,
-  selectedIds,
-}: {
-  results: SearchResult[];
-  onSelect: (r: SearchResult) => void;
-  selectedIds: Set<string>;
-}) {
-  if (results.length === 0) return null;
-
-  return (
-    <div className="mt-1.5 bg-bg-primary rounded-xl overflow-hidden border border-bg-tertiary">
-      {results.map((r, idx) => {
-        const alreadySelected = selectedIds.has(r.id);
-        const status = r.share_status;
-        let badgeText: string | null = null;
-        let disabled = alreadySelected;
-
-        if (status === 'accepted') {
-          badgeText = 'Already shared';
-          disabled = true;
-        } else if (status === 'pending') {
-          badgeText = 'Pending';
-          disabled = true;
-        }
-
-        return (
-          <button
-            key={r.id}
-            className={`w-full flex items-center gap-2.5 px-3 py-2.5 bg-transparent border-none text-left ${idx > 0 ? 'border-t border-bg-tertiary' : ''} ${disabled ? 'opacity-50 cursor-default' : 'cursor-pointer'}`}
-            onClick={() => { if (!disabled) onSelect(r); }}
-            disabled={disabled}
-          >
-            {r.avatar_url ? (
-              <img src={r.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-accent/15 flex items-center justify-center text-accent text-[12px] font-semibold flex-shrink-0">
-                {getInitial(r.display_name, r.email)}
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              {r.display_name && <div className="text-[13px] font-medium truncate">{r.display_name}</div>}
-              <div className="text-[12px] text-text-secondary truncate">{r.email}</div>
-            </div>
-            {badgeText && (
-              <span className="text-[11px] font-medium text-text-tertiary bg-bg-tertiary rounded-full px-2 py-0.5 flex-shrink-0">
-                {badgeText}
-              </span>
-            )}
-            {alreadySelected && !badgeText && (
-              <Check size={14} className="text-accent flex-shrink-0" />
-            )}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function PillInput({
-  selected,
-  onRemove,
-  inputRef,
-  query,
-  onQueryChange,
-  placeholder,
-}: {
-  selected: SearchResult[];
-  onRemove: (id: string) => void;
-  inputRef: React.RefObject<HTMLInputElement | null>;
-  query: string;
-  onQueryChange: (v: string) => void;
-  placeholder: string;
-}) {
-  return (
-    <div
-      className="flex-1 bg-bg-primary rounded-lg px-2 py-1.5 flex flex-wrap items-center gap-1.5 min-h-[40px] min-w-0 cursor-text"
-      onClick={() => inputRef.current?.focus()}
-    >
-      {selected.map(r => (
-        <span
-          key={r.id}
-          className="inline-flex items-center gap-1 bg-accent/10 text-accent rounded-full pl-2 pr-0.5 py-0.5 text-[12px] font-medium"
-        >
-          <span className="truncate max-w-[180px]">{getDisplayLabel(r)}</span>
-          <button
-            className="w-4 h-4 rounded-full bg-accent/20 flex items-center justify-center border-none cursor-pointer flex-shrink-0 hover:bg-accent/30"
-            onClick={e => { e.stopPropagation(); onRemove(r.id); }}
-          >
-            <X size={10} className="text-accent" />
-          </button>
-        </span>
-      ))}
-      <input
-        ref={inputRef}
-        type="text"
-        placeholder={selected.length === 0 ? placeholder : ''}
-        value={query}
-        onChange={e => onQueryChange(e.target.value)}
-        className="flex-1 bg-transparent border-none outline-none text-[14px] placeholder:text-text-tertiary min-w-[80px] py-1 px-1"
-      />
-    </div>
-  );
-}
-
-interface ConnectionListItem {
-  id: string;
-  name: string;
-  email: string;
-  avatar_url: string | null;
-  joined: boolean;
-  pending?: boolean;
-}
-
-function ConnectionList({ title, items, onRemove, removingId }: {
-  title: string;
-  items: ConnectionListItem[];
-  onRemove?: (id: string, name: string) => void;
-  removingId?: string | null;
-}) {
-  if (items.length === 0) return null;
-  return (
-    <div className="mt-3 pt-3 border-t border-bg-tertiary/50">
-      <div className="text-[11px] font-medium text-text-tertiary uppercase tracking-wide mb-2">
-        {title}
-      </div>
-      <div className="space-y-0">
-        {items.map((item) => (
-          <div key={item.id} className="flex items-center gap-2 py-1.5">
-            {item.avatar_url ? (
-              <img src={item.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover flex-shrink-0" />
-            ) : (
-              <div className="w-6 h-6 rounded-full bg-accent/15 flex items-center justify-center text-accent text-[10px] font-semibold flex-shrink-0">
-                {getInitial(item.name, item.email)}
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <span className="text-[13px] truncate block">
-                {item.name}
-                {item.name !== item.email && (
-                  <span className="text-text-tertiary ml-1">{item.email}</span>
-                )}
-              </span>
-            </div>
-            {!item.joined && (
-              <span className="text-[10px] text-text-tertiary bg-bg-tertiary rounded-full px-1.5 py-0.5 flex-shrink-0">
-                Not yet joined
-              </span>
-            )}
-            {item.pending && (
-              <span className="text-[10px] text-amber-500 bg-amber-500/10 rounded-full px-1.5 py-0.5 flex-shrink-0">
-                Pending
-              </span>
-            )}
-            {onRemove && (
-              <motion.button
-                className="w-6 h-6 rounded-full bg-bg-tertiary flex items-center justify-center border-none cursor-pointer flex-shrink-0 disabled:opacity-50"
-                onClick={() => onRemove(item.id, item.name)}
-                disabled={removingId === item.id}
-                whileTap={{ scale: 0.9 }}
-              >
-                <X size={12} className="text-text-secondary" />
-              </motion.button>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function useSearch(query: string) {
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
-
-  const q = query.trim();
-
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (q.length < 2) {
-      debounceRef.current = setTimeout(() => setResults([]), 0);
-      return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-    }
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/share-connections/search?q=${encodeURIComponent(q)}`);
-        if (res.ok) {
-          const data = await res.json();
-          setResults(data.results ?? []);
-        }
-      } catch {}
-    }, 300);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [q]);
-
-  return results;
 }
 
 function resizeImage(file: File, maxSize: number): Promise<File> {
@@ -417,44 +196,15 @@ function ProfileSetupView({ userId, displayName, avatarUrl, email, onDone, onSki
   );
 }
 
-export default function ShareSheet({ open, onClose, pendingRequests, onToast, onRefresh, userId, logDate, selfDisplayName, selfAvatarUrl, selfEmail, onProfileUpdate, logs, totals, profile, selectedDate }: ShareSheetProps) {
+export default function ShareSheet({ open, onClose, onToast, userId, logDate, selfDisplayName, selfAvatarUrl, selfEmail, onProfileUpdate, logs, totals, profile, selectedDate }: ShareSheetProps) {
   const needsProfileSetup = !selfDisplayName || !selfAvatarUrl;
   const [profileSetupDismissed, setProfileSetupDismissed] = useState(false);
   const showProfileSetup = open && needsProfileSetup && !profileSetupDismissed;
-  const [connections, setConnections] = useState<ManagedConnection[]>([]);
-  const [shareQuery, setShareQuery] = useState('');
-  const [selectedShareUsers, setSelectedShareUsers] = useState<SearchResult[]>([]);
-  const [sharingInProgress, setSharingInProgress] = useState(false);
-  const [respondingTo, setRespondingTo] = useState<string | null>(null);
-  const [removingId, setRemovingId] = useState<string | null>(null);
   const [copyingLink, setCopyingLink] = useState(false);
   const [sharingLink, setSharingLink] = useState(false);
-  const [shareDropdownOpen, setShareDropdownOpen] = useState(true);
   const [canDrag, setCanDrag] = useState(false);
   const [generatingImage, setGeneratingImage] = useState(false);
   const shareCardRef = useRef<HTMLDivElement>(null);
-  const shareInputRef = useRef<HTMLInputElement>(null);
-
-  const shareResults = useSearch(shareQuery);
-  const selectedShareIds = new Set(selectedShareUsers.map(u => u.id));
-
-  const loadConnections = useCallback(() => {
-    fetchAllMyConnections().then(setConnections);
-  }, []);
-
-  useEffect(() => {
-    if (open) loadConnections();
-  }, [open, loadConnections]);
-
-  const viewersOfMyLog: ConnectionListItem[] = connections
-    .filter(c => c.owner_id === userId && c.status === 'accepted')
-    .map(c => ({
-      id: c.id,
-      name: c.viewer_display_name || c.viewer_email.split('@')[0],
-      email: c.viewer_email,
-      avatar_url: c.viewer_avatar_url,
-      joined: !!c.viewer_id,
-    }));
 
   const getShareUrl = async (): Promise<string | null> => {
     const token = await getOrCreateShareLink(userId, logDate);
@@ -533,74 +283,7 @@ export default function ShareSheet({ open, onClose, pendingRequests, onToast, on
     }
   };
 
-  const handleShareAll = async () => {
-    if (selectedShareUsers.length === 0 || sharingInProgress) return;
-    setSharingInProgress(true);
-    let successCount = 0;
-    let alreadyCount = 0;
-    for (const user of selectedShareUsers) {
-      if (!user.email) continue;
-      const result = await createShareConnection('share', user.email);
-      if (result.ok) successCount++;
-      else if (result.existing) alreadyCount++;
-    }
-    setSharingInProgress(false);
-    setSelectedShareUsers([]);
-    setShareQuery('');
-    if (successCount > 0) {
-      onToast(`Log shared with ${successCount} ${successCount === 1 ? 'person' : 'people'}`);
-      onRefresh();
-      loadConnections();
-    } else if (alreadyCount > 0) {
-      onToast('Already sharing with selected people');
-    } else {
-      onToast('Failed to share');
-    }
-  };
-
-  const handleAccept = async (id: string) => {
-    setRespondingTo(id);
-    const ok = await updateConnectionStatus(id, 'accept');
-    setRespondingTo(null);
-    if (ok) {
-      onToast('Request accepted');
-      onRefresh();
-      loadConnections();
-    } else {
-      onToast('Failed to accept');
-    }
-  };
-
-  const handleDecline = async (id: string) => {
-    setRespondingTo(id);
-    const ok = await updateConnectionStatus(id, 'decline');
-    setRespondingTo(null);
-    if (ok) {
-      onToast('Request declined');
-      onRefresh();
-      loadConnections();
-    } else {
-      onToast('Failed to decline');
-    }
-  };
-
-  const handleRemoveConnection = async (id: string, name: string) => {
-    if (!window.confirm(`Remove ${name}?`)) return;
-    setRemovingId(id);
-    const ok = await updateConnectionStatus(id, 'revoke');
-    setRemovingId(null);
-    if (ok) {
-      onToast('Connection removed');
-      loadConnections();
-      onRefresh();
-    } else {
-      onToast('Failed to remove');
-    }
-  };
-
   const handleClose = () => {
-    setShareQuery('');
-    setSelectedShareUsers([]);
     setCanDrag(false);
     setProfileSetupDismissed(false);
     onClose();
@@ -667,64 +350,6 @@ export default function ShareSheet({ open, onClose, pendingRequests, onToast, on
               className="flex-1 overflow-y-auto scrollbar-none px-6 pt-5 pb-[max(env(safe-area-inset-bottom),24px)]"
               onPointerDown={() => setCanDrag(false)}
             >
-              {/* Pending incoming requests */}
-              {pendingRequests.length > 0 && (
-                <div className="mb-4">
-                  <div className="flex items-center gap-2 mb-2.5">
-                    <span className="text-xs font-medium text-text-secondary uppercase tracking-wide">
-                      Pending requests
-                    </span>
-                    <span className="w-[18px] h-[18px] rounded-full bg-destructive flex items-center justify-center leading-none">
-                      <span className="text-[9px] font-bold text-white leading-none">{pendingRequests.length}</span>
-                    </span>
-                  </div>
-                  <div className="bg-bg-secondary rounded-xl overflow-hidden">
-                    {pendingRequests.map((req, idx) => {
-                      const name = req.viewer_display_name || req.viewer_email.split('@')[0];
-                      const isResponding = respondingTo === req.id;
-                      return (
-                        <div key={req.id}>
-                          {idx > 0 && <div className="h-px bg-bg-tertiary mx-3.5" />}
-                          <div className="p-3.5 flex items-center gap-3">
-                            {req.viewer_avatar_url ? (
-                              <img src={req.viewer_avatar_url} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
-                            ) : (
-                              <div className="w-10 h-10 rounded-full bg-accent/15 flex items-center justify-center text-accent text-[14px] font-semibold flex-shrink-0">
-                                {getInitial(req.viewer_display_name, req.viewer_email)}
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <div className="text-[14px] font-medium truncate">{name}</div>
-                              <div className="text-[12px] text-text-secondary truncate">
-                                wants to see your log
-                              </div>
-                            </div>
-                            <div className="flex gap-2 flex-shrink-0">
-                              <motion.button
-                                className="w-9 h-9 rounded-full bg-accent/10 flex items-center justify-center border-none cursor-pointer disabled:opacity-50"
-                                onClick={() => handleAccept(req.id)}
-                                disabled={isResponding}
-                                whileTap={{ scale: 0.9 }}
-                              >
-                                <Check size={16} className="text-accent" />
-                              </motion.button>
-                              <motion.button
-                                className="w-9 h-9 rounded-full bg-bg-tertiary flex items-center justify-center border-none cursor-pointer disabled:opacity-50"
-                                onClick={() => handleDecline(req.id)}
-                                disabled={isResponding}
-                                whileTap={{ scale: 0.9 }}
-                              >
-                                <XIcon size={16} className="text-text-secondary" />
-                              </motion.button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
               {/* Horizontal share options */}
               <div className="grid grid-cols-3 gap-2">
                 <motion.button
@@ -754,59 +379,6 @@ export default function ShareSheet({ open, onClose, pendingRequests, onToast, on
                   <span className="text-text-secondary"><Share2 size={22} /></span>
                   <span className="text-[11px] font-medium text-text-secondary leading-tight text-center">Share link</span>
                 </motion.button>
-              </div>
-
-              {/* OR separator */}
-              <div className="flex items-center gap-3 my-4">
-                <div className="flex-1 h-px bg-bg-tertiary" />
-                <span className="text-[11px] font-medium text-text-tertiary uppercase tracking-wide">or</span>
-                <div className="flex-1 h-px bg-bg-tertiary" />
-              </div>
-
-              {/* Share log on Calorrific */}
-              <div className="bg-bg-secondary rounded-xl overflow-hidden">
-                <div className="px-3.5 pt-3.5 pb-3.5">
-                  <div className="flex items-center gap-2 mb-2.5">
-                    <div className="w-6 h-6 rounded-full bg-accent/10 flex items-center justify-center flex-shrink-0">
-                      <UserPlus size={12} className="text-accent" />
-                    </div>
-                    <span className="text-[13px] font-medium">Share log on Calorrific</span>
-                  </div>
-                  <div className="flex gap-2 items-end">
-                    <PillInput
-                      selected={selectedShareUsers}
-                      onRemove={id => setSelectedShareUsers(prev => prev.filter(u => u.id !== id))}
-                      inputRef={shareInputRef}
-                      query={shareQuery}
-                      onQueryChange={v => { setShareQuery(v); setShareDropdownOpen(true); }}
-                      placeholder="Search by name or email"
-                    />
-                    <motion.button
-                      className="w-10 h-10 rounded-lg bg-accent flex items-center justify-center border-none cursor-pointer flex-shrink-0 disabled:opacity-50"
-                      onClick={handleShareAll}
-                      disabled={selectedShareUsers.length === 0 || sharingInProgress}
-                      whileTap={{ scale: 0.9 }}
-                    >
-                      <Send size={16} className="text-white" />
-                    </motion.button>
-                  </div>
-                  <p className="text-[11px] text-text-tertiary mt-1.5 mb-0">Calorrific account required to view</p>
-                  {shareDropdownOpen && (
-                    <SearchDropdown
-                      results={shareResults}
-                      selectedIds={selectedShareIds}
-                      onSelect={r => {
-                        if (r.email && !selectedShareIds.has(r.id)) {
-                          setSelectedShareUsers(prev => [...prev, r]);
-                          setShareQuery('');
-                          setShareDropdownOpen(false);
-                          shareInputRef.current?.focus();
-                        }
-                      }}
-                    />
-                  )}
-                  <ConnectionList title="Shared with" items={viewersOfMyLog} onRemove={handleRemoveConnection} removingId={removingId} />
-                </div>
               </div>
             </div>
             )}
