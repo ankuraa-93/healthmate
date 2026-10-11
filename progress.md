@@ -1304,3 +1304,6 @@ With the switcher gone, Home is the default and Account only needs one entry poi
 - Stays steady when switching days within a week: live totals are overlaid only onto the date the loaded `logs` belong to (`balanceCalories` in page.tsx), so the stale previous-day logs during a date switch don't briefly change the number.
 
 - Next: weekly summary strip peeking from the top of the nav ("On track to lose x kg this week") — scenarios pending from user.
+
+### Suggested foods: + moved to the left (Oct 11 2026)
+- In `SuggestedFoods` rows the green + now leads the row, before the food name, sized to the 11px text (16px circle, 11px icon), so it no longer lines up under Home's bottom-right Log Food + in the action bar.

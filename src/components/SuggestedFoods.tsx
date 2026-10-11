@@ -51,7 +51,7 @@ export default function SuggestedFoods({ items, onAdd, onDismiss, embedded }: Su
           return (
             <motion.div
               key={item.food_name}
-              className="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 cursor-pointer hover:bg-accent/[0.06] active:bg-accent/10 transition-colors"
+              className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 cursor-pointer hover:bg-accent/[0.06] active:bg-accent/10 transition-colors"
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
@@ -59,12 +59,13 @@ export default function SuggestedFoods({ items, onAdd, onDismiss, embedded }: Su
               whileTap={{ scale: 0.98 }}
               onClick={() => onAdd(item)}
             >
+              {/* + leads the row so it doesn't sit under Home's bottom-right Log Food button */}
+              <div className="w-4 h-4 rounded-full bg-accent/10 flex items-center justify-center flex-shrink-0">
+                <Plus size={11} strokeWidth={2.5} className="text-accent" />
+              </div>
               <div className="flex-1 min-w-0">
                 <span className="text-[11px] font-medium text-text-primary">{item.food_name}</span>
                 <span className="text-[11px] text-text-tertiary ml-1.5">{item.quantity_g}{unitLabel}</span>
-              </div>
-              <div className="w-6 h-6 rounded-full bg-accent/10 flex items-center justify-center flex-shrink-0">
-                <Plus size={13} className="text-accent" />
               </div>
             </motion.div>
           );
