@@ -14,13 +14,14 @@ import EditFoodSheet from '@/components/EditFoodSheet';
 import Toast from '@/components/Toast';
 import WeekStrip from '@/components/WeekStrip';
 import WeeklyBalanceStrip from '@/components/WeeklyBalanceStrip';
-import { estimateFromProfile } from '@/lib/goals';
+import { estimateFromProfile, weekStartOf } from '@/lib/goals';
+import { takeQueuedToast } from '@/lib/pending-toast';
 import GuestWelcome from '@/components/GuestWelcome';
 import OnboardingSheet from '@/components/OnboardingSheet';
 import DefaultGoalsSuggestion from '@/components/DefaultGoalsSuggestion';
 import { useAuth } from '@/components/AuthProvider';
 import { DEMO_USER_ID } from '@/lib/demo';
-import { fetchFoodLogs, fetchProfile, updateFoodLog, deleteFoodLog, insertFoodLog, fetchSuggestions, fetchWeeklyCalories, SuggestedFood, insertProcessingJob, deleteProcessingJob, updateProcessingJob, fetchProcessingJobs, uploadFoodPhoto, fetchSourceImages, SourceImage } from '@/lib/supabase-data';
+import { fetchFoodLogs, fetchProfile, updateFoodLog, deleteFoodLog, insertFoodLog, fetchSuggestions, fetchWeeklyCalories, SuggestedFood, insertProcessingJob, deleteProcessingJob, updateProcessingJob, fetchProcessingJobs, uploadFoodPhoto, fetchSourceImages, SourceImage, fetchWeekGoals, WeekGoals } from '@/lib/supabase-data';
 import SuggestedFoods from '@/components/SuggestedFoods';
 import HomeHeader from '@/components/HomeHeader';
 import ShareSheet from '@/components/ShareSheet';
@@ -112,6 +113,8 @@ export default function DashboardPage() {
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [weeklyCalories, setWeeklyCalories] = useState<Record<string, number>>({});
+  // Goals in effect for the selected week (goal_history); null → use the live profile.
+  const [weekGoals, setWeekGoals] = useState<WeekGoals | null>(null);
   const [shareSheetOpen, setShareSheetOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
@@ -167,6 +170,7 @@ export default function DashboardPage() {
             fetchProfile(user.id).then(p => { if (p) setProfile(p); setProfileLoaded(true); }),
             fetchSuggestions(user.id, selectedDate).then(setSuggestions),
             fetchWeeklyCalories(user.id, getWeekDates(selectedDate)).then(setWeeklyCalories),
+            fetchWeekGoals(user.id, selectedDate).then(setWeekGoals),
             fetchProcessingJobs(user.id, date).then(setProcessingJobs),
             fetchSourceImages(user.id, date).then(setSourceImages),
           ]);
@@ -217,6 +221,15 @@ export default function DashboardPage() {
     fetchProcessingJobs(user.id, date).then(setProcessingJobs);
     fetchSourceImages(user.id, date).then(setSourceImages);
   }, [user, selectedDate]);
+
+  // Refetch week goals only when the week changes, not on every day switch.
+  const selectedWeekStart = weekStartOf(selectedDate);
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    fetchWeekGoals(user.id, new Date(`${selectedWeekStart}T00:00:00`)).then(g => { if (!cancelled) setWeekGoals(g); });
+    return () => { cancelled = true; };
+  }, [user, selectedWeekStart]);
 
   useEffect(() => {
     const activeIds = processingJobs.filter(j => j.status === 'processing').map(j => j.id);
@@ -297,9 +310,16 @@ export default function DashboardPage() {
   const mergedWeeklyCalories = { ...weeklyCalories };
   mergedWeeklyCalories[formatDate(selectedDate)] = totals.calories;
 
+  // Goals for the selected week: a past week keeps the goals it had then, so
+  // changing activity or goals only applies from the current week onward.
+  const goals = weekGoals ? { ...profile, ...weekGoals } : profile;
+
   // Weekly balance strip: maintenance (TDEE) is only known for users who've
-  // filled in their body stats; others don't see the strip.
-  const maintenanceCalories = estimateFromProfile(profile)?.tdee ?? null;
+  // filled in their body stats; others don't see the strip. Measured against
+  // maintenance (not the target) so deficit/surplus reflects real weight change.
+  const maintenanceCalories = weekGoals
+    ? weekGoals.maintenance_calories
+    : estimateFromProfile(profile)?.tdee ?? null;
   // Overlay live totals only for the day `logs` actually belongs to. Right
   // after switching days, `logs` still holds the previous day until its fetch
   // lands; keying by the entries' own date keeps the strip steady meanwhile.
@@ -314,6 +334,17 @@ export default function DashboardPage() {
     setToast({ visible: true, message, action });
     toastTimer.current = setTimeout(() => setToast({ visible: false, message: '' }), duration);
   }, []);
+
+  // Toast queued by a page that saved and routed here (e.g. goals recalculated).
+  // Shown just after mount so it lands once the page transition settles.
+  useEffect(() => {
+    // Read inside the timer so a StrictMode double-mount doesn't consume it.
+    const t = setTimeout(() => {
+      const message = takeQueuedToast();
+      if (message) showToast(message, 2500);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [showToast]);
 
   const hideToast = useCallback(() => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -658,7 +689,7 @@ export default function DashboardPage() {
           selectedDate={selectedDate}
           onSelectDate={setSelectedDate}
           weeklyCalories={mergedWeeklyCalories}
-          calorieTarget={profile.daily_calorie_goal}
+          calorieTarget={goals.daily_calorie_goal}
         />
         <WeeklyBalanceStrip
           weeklyCalories={balanceCalories}
@@ -695,17 +726,17 @@ export default function DashboardPage() {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.1 }}
         >
-          <CalorieRing consumed={totals.calories} target={profile.daily_calorie_goal} />
+          <CalorieRing consumed={totals.calories} target={goals.daily_calorie_goal} />
           <MacroGrid
             protein={totals.protein}
-            proteinTarget={profile.daily_protein_goal}
+            proteinTarget={goals.daily_protein_goal}
             carbs={totals.carbs}
-            carbsTarget={profile.daily_carbs_goal}
+            carbsTarget={goals.daily_carbs_goal}
             fat={totals.fat}
-            fatTarget={profile.daily_fat_goal}
+            fatTarget={goals.daily_fat_goal}
             fibre={totals.fibre}
-            fibreTarget={profile.daily_fibre_goal}
-            calorieRatio={totals.calories / profile.daily_calorie_goal}
+            fibreTarget={goals.daily_fibre_goal}
+            calorieRatio={totals.calories / goals.daily_calorie_goal}
           />
         </motion.div>
 
@@ -1309,7 +1340,7 @@ export default function DashboardPage() {
         onProfileUpdate={(fields) => setProfile(prev => ({ ...prev, ...fields }))}
         logs={logs}
         totals={totals}
-        profile={profile}
+        profile={goals}
         selectedDate={selectedDate}
       />
 

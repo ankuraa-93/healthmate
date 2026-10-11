@@ -154,3 +154,50 @@ export function estimateFromProfile(profile: {
     bmr, tdee: bmr * activity_factor,
   };
 }
+
+// --- Activity factor from extracted workouts ---
+// Gemini is good at pulling hours + intensity out of free text but poor at
+// picking a calibrated multiplier (it either over-shoots or, when told to be
+// conservative, lumps everything into 1.55). So it extracts workouts and we
+// turn them into a factor here, deterministically, with a dampening curve.
+export const SEDENTARY_FACTOR = 1.2;
+export const ACTIVITY_FACTOR_CEILING = 1.725;
+export const INTENSITY_WEIGHT = { low: 0.5, moderate: 1.0, high: 1.5 } as const;
+// factor = 1.2 + RANGE × (1 − e^(−load / SCALE)). Early hours count most; each
+// extra hour adds less (diminishing returns), so heavy schedules can't inflate
+// maintenance. load = weekly hours weighted by intensity.
+export const ACTIVITY_RANGE = 0.45;
+export const ACTIVITY_LOAD_SCALE = 6;
+
+const WALKING_RE = /walk|steps?\b/i;
+
+/** Weekly intensity-weighted exercise hours. */
+export function weeklyActivityLoad(workouts: WorkoutEntry[]): number {
+  return workouts.reduce((sum, w) => {
+    const hours = (Number(w.sessions_per_week) || 0) * (Number(w.minutes_per_session) || 0) / 60;
+    // Walking / steps always count as low — Gemini tends to rate them moderate,
+    // which made a daily step habit look like a full gym routine.
+    const intensity = WALKING_RE.test(w.activity ?? '') ? 'low' : w.intensity;
+    const weight = INTENSITY_WEIGHT[intensity] ?? INTENSITY_WEIGHT.moderate;
+    return sum + Math.max(0, hours) * weight;
+  }, 0);
+}
+
+/** Dampened activity factor from workouts, rounded to 0.005. */
+export function activityFactorFromWorkouts(workouts: WorkoutEntry[]): number {
+  const load = weeklyActivityLoad(workouts);
+  const raw = SEDENTARY_FACTOR + ACTIVITY_RANGE * (1 - Math.exp(-load / ACTIVITY_LOAD_SCALE));
+  return Math.round(Math.min(ACTIVITY_FACTOR_CEILING, raw) * 200) / 200;
+}
+
+// --- Goal history ---
+// Goals + maintenance are snapshotted per week (goal_history table) so changes
+// apply from the current week onward instead of rewriting past weeks.
+
+/** Monday (local date, YYYY-MM-DD) of the week containing `date`. */
+export function weekStartOf(date: Date): string {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}

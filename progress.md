@@ -1311,3 +1311,21 @@ With the switcher gone, Home is the default and Account only needs one entry poi
 ### Suggested foods: + now trails the text (Oct 11 2026)
 - The + moved again: it now sits right after the food name + quantity (gap-2), not right-aligned and not leading. Still clear of the bottom-right Log Food button.
 - Home ActionBar: container inset moved to `left-6 right-6 bottom-[max(24px,safe+12px)]` so both pills (Today and Share/Log food, both 48px tall) sit 24px from their side edge and the bottom — mirror images.
+
+### Activity factor: computed from workouts with a dampener (Oct 11 2026)
+- Problem: maintenance stuck at 2600 — Gemini picks one of 5 bands and the prompt soft-caps recreational exercisers at 1.55, so "3h gym + 3h pickleball" and "6h intense gym + 6h pickleball" both got 1.55.
+- Now Gemini only extracts workouts (sessions × minutes × intensity); `activityFactorFromWorkouts` in `src/lib/goals.ts` computes the factor: load = Σ hours × intensity weight (low 0.5 / moderate 1 / high 1.5; walking & steps always low), factor = 1.2 + 0.45 × (1 − e^(−load/6)), ceiling 1.725, rounded to 0.005.
+- `/api/estimate-activity` uses it whenever workouts were extracted; Gemini's band is the fallback for vague text with none.
+- Sample results (BMR≈1677): 3h gym 1.375 · 3h gym+3h pickleball 1.485 · 6h gym+3h racquet 1.55 · 6h intense gym+6h pickleball 1.615 · 2h training daily 1.635.
+- Existing profiles keep their stored factor until the user recalculates.
+- Next: maintenance history so activity changes apply from the current week onward, not retroactively.
+
+### Goal history: goal changes apply from the current week onward (Oct 11 2026)
+- New `goal_history` table (`migrations/add-goal-history.sql`): one row per user per week (Monday, local) with daily calorie/macro goals, maintenance calories and activity factor. RLS: own rows only. Backfill gives every existing user one row from their signup week with current values.
+- `updateProfile` snapshots the current week whenever goals, biometrics or activity factor change (same-week saves overwrite). Before a user's first change it inserts a baseline from their pre-change profile at their signup week, so earlier weeks keep the old values.
+- Home: `fetchWeekGoals` loads the latest snapshot on/before the selected week's Monday; ring, macro bars, week strip rings, weekly balance strip and share image use it. Falls back to the live profile when there's no history (or the table is missing).
+- Decisions: a mid-week change applies to the whole current week; the daily calorie goal follows the same rule as maintenance.
+- Demo reset also clears the demo user's goal_history.
+- Not covered: the share-link viewer (RPC) still uses the live goal.
+- Toast "Goals updated from this week onwards" after saving goals. The onboarding/recalculate flow used to show "Goals updated ✓" then navigate after 700ms, which unmounted the toast; now it queues the toast (`src/lib/pending-toast.ts`, sessionStorage) and Home/Settings show it on arrival. The Settings Daily Goals sheet save shows it directly (and an error toast on failure).
+- Weekly balance strip stays measured against maintenance (that week's, from goal_history), not the calorie target — deficit/surplus should reflect actual weight loss/gain. (Briefly switched to target, reverted.)

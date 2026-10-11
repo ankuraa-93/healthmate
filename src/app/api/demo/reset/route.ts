@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
 
   try {
     // 1. Wipe whatever the previous visitor left behind.
-    for (const table of ['food_log', 'processing_jobs', 'share_links']) {
+    for (const table of ['food_log', 'processing_jobs', 'share_links', 'goal_history']) {
       const res = await del(table);
       if (!res.ok && res.status !== 404) {
         const text = await res.text();

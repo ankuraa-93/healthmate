@@ -9,6 +9,7 @@ import { fetchProfile } from '@/lib/supabase-data';
 import { Profile } from '@/lib/types';
 import PersonalizeGoalsFlow from '@/components/PersonalizeGoalsFlow';
 import Toast from '@/components/Toast';
+import { queueToast, GOALS_UPDATED_TOAST } from '@/lib/pending-toast';
 
 type Stage = 'choose' | 'personalize';
 
@@ -43,9 +44,10 @@ function OnboardingInner() {
   const returnTo = fromSettings ? '/settings' : '/';
   const finish = () => { router.push(returnTo); router.refresh(); };
 
+  // Toast shows on the page we return to — this page unmounts on navigation.
   const handleSaved = () => {
-    showToast('Goals updated ✓');
-    setTimeout(finish, 700);
+    queueToast(GOALS_UPDATED_TOAST);
+    finish();
   };
 
   // If the flow was opened directly (from Settings via ?mode=…), Back returns to

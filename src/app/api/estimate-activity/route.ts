@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { flashModel, ACTIVITY_ESTIMATE_PROMPT } from '@/lib/gemini';
 import { withRetry } from '@/lib/gemini-retry';
+import { activityFactorFromWorkouts } from '@/lib/goals';
 
 // Estimates a TDEE activity factor + resistance-training flag from a free-text
 // description of someone's weekly activity, and extracts structured workouts.
@@ -21,14 +22,19 @@ export async function POST(req: NextRequest) {
 
     const parsed = JSON.parse(result.response.text());
 
-    // Clamp the factor to the valid Mifflin–St Jeor activity range so a stray
-    // model value can never blow up the calorie estimate downstream.
+    const workouts = Array.isArray(parsed.workouts) ? parsed.workouts : [];
+
+    // Prefer our own dampened factor from the extracted workouts — it moves
+    // with every hour and is deterministic. Gemini's band is only a fallback for
+    // vague text with no extractable workouts ("I'm pretty active"), clamped to
+    // the valid Mifflin–St Jeor range so a stray value can't blow up the estimate.
     const factor = Number(parsed.activity_factor);
-    const activity_factor = Number.isFinite(factor)
+    const geminiFactor = Number.isFinite(factor)
       ? Math.min(1.9, Math.max(1.2, factor))
       : 1.2;
-
-    const workouts = Array.isArray(parsed.workouts) ? parsed.workouts : [];
+    const activity_factor = workouts.length > 0
+      ? activityFactorFromWorkouts(workouts)
+      : geminiFactor;
 
     return NextResponse.json({
       activity_factor,

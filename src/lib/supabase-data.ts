@@ -1,4 +1,5 @@
 import { createClient } from './supabase';
+import { estimateFromProfile, weekStartOf } from './goals';
 import { FoodLogEntry, Profile, FoodLibraryItem, ProcessingJob, ViewableConnection, PendingRequest, ManagedConnection } from './types';
 
 const supabase = createClient();
@@ -24,6 +25,8 @@ export async function updateProfile(userId: string, updates: Partial<Pick<Profil
   | 'sex' | 'age' | 'birth_date' | 'height_cm' | 'weight_kg' | 'activity_description' | 'activity_factor'
   | 'does_resistance_training' | 'activity_workouts' | 'goal_type' | 'goal_pace_kg_per_month' | 'goals_mode'
 >>): Promise<Profile | null> {
+  const touchesGoals = GOAL_HISTORY_KEYS.some(k => k in updates);
+  if (touchesGoals) await ensureGoalHistoryBaseline(userId);
   const { data, error } = await supabase
     .from('profiles')
     .update({ ...updates, updated_at: new Date().toISOString() })
@@ -33,6 +36,89 @@ export async function updateProfile(userId: string, updates: Partial<Pick<Profil
 
   if (error) {
     console.error('updateProfile error:', error);
+    return null;
+  }
+  if (touchesGoals) await recordGoalHistory(data);
+  return data;
+}
+
+// --- Goal history ---
+// Per-week snapshots of goals + maintenance so a change applies from the
+// current week onward. See migrations/add-goal-history.sql.
+
+export interface WeekGoals {
+  daily_calorie_goal: number;
+  daily_protein_goal: number;
+  daily_carbs_goal: number;
+  daily_fat_goal: number;
+  daily_fibre_goal: number;
+  maintenance_calories: number | null;
+}
+
+// Profile fields that change goals or maintenance — saving any snapshots the week.
+const GOAL_HISTORY_KEYS = [
+  'daily_calorie_goal', 'daily_protein_goal', 'daily_carbs_goal', 'daily_fat_goal', 'daily_fibre_goal',
+  'sex', 'birth_date', 'height_cm', 'weight_kg', 'activity_factor',
+] as const;
+
+function goalSnapshot(profile: Profile, weekStart: string) {
+  return {
+    user_id: profile.id,
+    week_start: weekStart,
+    daily_calorie_goal: profile.daily_calorie_goal,
+    daily_protein_goal: profile.daily_protein_goal,
+    daily_carbs_goal: profile.daily_carbs_goal,
+    daily_fat_goal: profile.daily_fat_goal,
+    daily_fibre_goal: profile.daily_fibre_goal,
+    maintenance_calories: estimateFromProfile(profile)?.tdee ?? null,
+    activity_factor: profile.activity_factor ?? null,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+/**
+ * Before a user's first goal change, snapshot their current (pre-change) goals
+ * from the week they signed up — otherwise weeks before the change would have
+ * no history and fall back to the new values. No-op once any history exists.
+ */
+async function ensureGoalHistoryBaseline(userId: string): Promise<void> {
+  const { data: existing, error } = await supabase
+    .from('goal_history').select('week_start').eq('user_id', userId).limit(1);
+  if (error || (existing && existing.length > 0)) return;
+  const profile = await fetchProfile(userId);
+  if (!profile) return;
+  const { error: insertError } = await supabase.from('goal_history').upsert(
+    goalSnapshot(profile, weekStartOf(new Date(profile.created_at))),
+    { onConflict: 'user_id,week_start', ignoreDuplicates: true },
+  );
+  if (insertError) console.error('ensureGoalHistoryBaseline error:', insertError);
+}
+
+/** Upsert this week's goal snapshot from a just-saved profile. Best-effort. */
+async function recordGoalHistory(profile: Profile): Promise<void> {
+  const { error } = await supabase.from('goal_history').upsert(
+    goalSnapshot(profile, weekStartOf(new Date())),
+    { onConflict: 'user_id,week_start' },
+  );
+  if (error) console.error('recordGoalHistory error:', error);
+}
+
+/**
+ * Goals in effect for the week containing `date`: the latest snapshot starting
+ * on or before that week's Monday. Null when there's no history (callers fall
+ * back to the live profile).
+ */
+export async function fetchWeekGoals(userId: string, date: Date): Promise<WeekGoals | null> {
+  const { data, error } = await supabase
+    .from('goal_history')
+    .select('daily_calorie_goal, daily_protein_goal, daily_carbs_goal, daily_fat_goal, daily_fibre_goal, maintenance_calories')
+    .eq('user_id', userId)
+    .lte('week_start', weekStartOf(date))
+    .order('week_start', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.error('fetchWeekGoals error:', error);
     return null;
   }
   return data;

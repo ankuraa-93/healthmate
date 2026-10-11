@@ -7,6 +7,7 @@ import { UserRound, Target, LogOut, ChevronRight, ChevronLeft, Camera, X } from 
 import DefaultGoalsSuggestion from '@/components/DefaultGoalsSuggestion';
 import PersonalizedGoalsSheet from '@/components/PersonalizedGoalsSheet';
 import Toast from '@/components/Toast';
+import { takeQueuedToast, GOALS_UPDATED_TOAST } from '@/lib/pending-toast';
 import { useAuth } from '@/components/AuthProvider';
 import { createClient } from '@/lib/supabase';
 import { fetchProfile, updateProfile, uploadAvatar } from '@/lib/supabase-data';
@@ -85,6 +86,19 @@ export default function SettingsPage() {
     if (!user) return;
     fetchProfile(user.id).then(p => { if (p) { setProfile(p); setEditingName(p.display_name ?? ''); } });
   }, [user]);
+
+  // Toast queued by a page that saved and routed here (e.g. goals recalculated).
+  // Shown just after mount so it lands once the page transition settles.
+  useEffect(() => {
+    // Read inside the timer so a StrictMode double-mount doesn't consume it.
+    const t = setTimeout(() => {
+      const message = takeQueuedToast();
+      if (!message) return;
+      setToast({ visible: true, message });
+      toastTimer.current = setTimeout(() => setToast({ visible: false, message: '' }), 2500);
+    }, 300);
+    return () => clearTimeout(t);
+  }, []);
 
   const saveDisplayName = async () => {
     const trimmed = editingName.trim();
@@ -165,7 +179,8 @@ export default function SettingsPage() {
       daily_fat_goal: m.fat, daily_fibre_goal: m.fibre,
     });
     setSavingGoals(false);
-    if (updated) { setProfile(updated); setGoalsEstimate(null); }
+    if (updated) { setProfile(updated); setGoalsEstimate(null); showToast(GOALS_UPDATED_TOAST); }
+    else showToast('Could not save — please try again');
   };
 
   const handleSignOut = async () => {
