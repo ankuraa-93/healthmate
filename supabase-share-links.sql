@@ -37,7 +37,7 @@ AS $$
 DECLARE
   link_user_id uuid;
   the_date date;
-  week_start date;
+  view_week_start date;
   result jsonb;
 BEGIN
   SELECT user_id INTO link_user_id
@@ -49,17 +49,17 @@ BEGIN
   END IF;
 
   the_date := COALESCE(target_date, CURRENT_DATE);
-  week_start := the_date - ((EXTRACT(ISODOW FROM the_date)::int - 1));
+  view_week_start := the_date - ((EXTRACT(ISODOW FROM the_date)::int - 1));
 
   SELECT jsonb_build_object(
     'display_name', p.display_name,
     'email', u.email,
     'logged_date', the_date,
-    'daily_calorie_goal', p.daily_calorie_goal,
-    'daily_protein_goal', p.daily_protein_goal,
-    'daily_carbs_goal', p.daily_carbs_goal,
-    'daily_fat_goal', p.daily_fat_goal,
-    'daily_fibre_goal', p.daily_fibre_goal,
+    'daily_calorie_goal', COALESCE(gh.daily_calorie_goal, p.daily_calorie_goal),
+    'daily_protein_goal', COALESCE(gh.daily_protein_goal, p.daily_protein_goal),
+    'daily_carbs_goal', COALESCE(gh.daily_carbs_goal, p.daily_carbs_goal),
+    'daily_fat_goal', COALESCE(gh.daily_fat_goal, p.daily_fat_goal),
+    'daily_fibre_goal', COALESCE(gh.daily_fibre_goal, p.daily_fibre_goal),
     'entries', COALESCE((
       SELECT jsonb_agg(
         jsonb_build_object(
@@ -113,14 +113,25 @@ BEGIN
         FROM food_log
         WHERE user_id = link_user_id
           AND status = 'confirmed'
-          AND logged_date >= week_start
-          AND logged_date < week_start + 7
+          AND logged_date >= view_week_start
+          AND logged_date < view_week_start + 7
         GROUP BY logged_date
       ) wf
     ), '{}'::jsonb)
   ) INTO result
   FROM profiles p
   JOIN auth.users u ON u.id = p.id
+  -- Goals in effect for the viewed week (latest snapshot on/before its Monday),
+  -- so past days keep the goals they had then. Falls back to the profile.
+  LEFT JOIN LATERAL (
+    SELECT g.daily_calorie_goal, g.daily_protein_goal, g.daily_carbs_goal,
+           g.daily_fat_goal, g.daily_fibre_goal
+    FROM goal_history g
+    WHERE g.user_id = link_user_id
+      AND g.week_start <= view_week_start
+    ORDER BY g.week_start DESC
+    LIMIT 1
+  ) gh ON true
   WHERE p.id = link_user_id;
 
   RETURN result;
