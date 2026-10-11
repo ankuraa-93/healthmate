@@ -19,7 +19,7 @@ const GLASS_PILL = 'rounded-full bg-white/60 border border-white/70 backdrop-blu
 export default function ActionBar({ isToday, onToday, onShare, onAdd }: ActionBarProps) {
   return (
     <div
-      className="absolute left-4 right-4 bottom-[max(20px,calc(env(safe-area-inset-bottom)+8px))] z-10 flex items-center justify-between pointer-events-none"
+      className="absolute left-6 right-6 bottom-[max(24px,calc(env(safe-area-inset-bottom)+12px))] z-10 flex items-center justify-between pointer-events-none"
       style={{ touchAction: 'manipulation' }}
     >
       {/* Only shown off-today; pops in/out like a bubble */}
@@ -39,7 +39,7 @@ export default function ActionBar({ isToday, onToday, onShare, onAdd }: ActionBa
         )}
       </AnimatePresence>
 
-      <div className={`pointer-events-auto ml-auto mr-2 -translate-y-1 flex items-center gap-1 p-1 ${GLASS_PILL}`}>
+      <div className={`pointer-events-auto ml-auto flex items-center gap-1 p-1 ${GLASS_PILL}`}>
         <motion.button
           aria-label="Share"
           className="w-14 h-[38px] rounded-full flex items-center justify-center bg-transparent border-none cursor-pointer text-text-primary"
